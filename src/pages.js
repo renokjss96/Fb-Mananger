@@ -268,9 +268,16 @@ async function graphQL(cookie, tokens, docId, friendlyName, variables) {
     },
     body,
   });
-  const text = await res.text();
+  let text = await res.text();
+  // FB thường prefix "for (;;);" — phải strip trước khi parse
+  text = text.replace(/^for\s*\(\s*;\s*;\s*\)\s*;\s*/, '');
   let json;
   try { json = JSON.parse(text); } catch { throw new Error('GraphQL trả về không phải JSON: ' + text.slice(0, 600)); }
+  // FB trả error dạng {"__ar":1,"error":1357032,"errorSummary":"..."} — không nằm trong json.errors
+  if (json && json.error) {
+    const msg = json.errorSummary || json.errorDescription || `FB error ${json.error} ${json.errorDescription || ''}`;
+    throw new Error(String(msg).slice(0, 600) || `FB error ${json.error}`);
+  }
   if (json.errors) throw new Error(json.errors[0]?.message || JSON.stringify(json.errors).slice(0, 600));
   return json;
 }
