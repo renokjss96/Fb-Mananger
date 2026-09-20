@@ -931,6 +931,7 @@ function wire() {
       <div class="ctx-head">${esc(page.name || page.pageId)}<span>${esc(page.pageId)} · ${esc(page.category || '')}</span></div>
       <div class="ctx-sep"></div>
       <button data-act="open-page">Mở page (Chrome owner)</button>
+      <button data-act="avatar-one">Đổi avatar (chọn ảnh)…</button>
       <button data-act="copy-page-id">Copy Page ID</button>
       <button data-act="copy-page-url">Copy link page</button>
       <div class="ctx-sep"></div>
@@ -951,6 +952,7 @@ function wire() {
       const act = b.dataset.act;
       closeMenus();
       if (act === 'open-page') await openPageInOwnerChrome(page.pageId);
+      else if (act === 'avatar-one') openAvatarDialog([page.pageId]);
       else if (act === 'copy-page-id') { await invoke('clipboard:write', { text: page.pageId }); toast('Đã copy Page ID'); }
       else if (act === 'copy-page-url') { const u = page.url || `https://facebook.com/${page.pageId}`; await invoke('clipboard:write', { text: u }); toast('Đã copy link page'); }
       else if (act === 'restrict-this') openPagesRestrict([page.pageId]);
@@ -1038,6 +1040,62 @@ function wire() {
     await refresh();
   });
   on('#btnPagesBulk', 'click', () => { openPagesRestrict(selectedPageIds()); });
+  // ---- avatar ----
+  let avatarPick = { filePath: '', folder: '', files: [] };
+  function refreshAvatarChoice() {
+    const info = $('#avatarChoiceInfo');
+    const title = $('#dlgAvatarTitle');
+    const hint = $('#dlgAvatarHint');
+    const n = selectedPageIds().length;
+    if (title) title.textContent = n <= 1 ? 'Đổi avatar' : `Đổi avatar (${n} page)`;
+    if (hint) hint.textContent = n <= 1 ? 'Chọn 1 ảnh cho 1 page.' : `Đã chọn ${n} page — chọn thư mục để random mỗi page 1 ảnh.`;
+    if (!info) return;
+    if (avatarPick.folder) info.textContent = `Thư mục: ${avatarPick.folder} — ${avatarPick.files.length} ảnh (random)`;
+    else if (avatarPick.filePath) info.textContent = `Ảnh: ${avatarPick.filePath}`;
+    else info.textContent = 'Chưa chọn ảnh/thư mục';
+  }
+  function openAvatarDialog(ids) {
+    const arr = (ids || []).map(String).filter(Boolean);
+    if (!arr.length) { toast('Chưa chọn page'); return; }
+    selectedPages.clear(); arr.forEach((id) => selectedPages.add(id)); renderPagesTable();
+    avatarPick = { filePath: '', folder: '', files: [] };
+    refreshAvatarChoice();
+    $('#dlgPageAvatar').showModal();
+  }
+  on('#btnAvatarPickFile', 'click', async () => {
+    const r = await invoke('pages:pickImage', {});
+    if (!r.ok) { if (r.error !== 'cancel') toast(r.error || 'Không chọn được ảnh'); return; }
+    avatarPick = { filePath: r.filePath, folder: '', files: [r.filePath] };
+    refreshAvatarChoice(); toast('Đã chọn ảnh: ' + r.filePath.split(/[\\/]/).pop());
+  });
+  on('#btnAvatarPickFolder', 'click', async () => {
+    const r = await invoke('pages:pickFolder', {});
+    if (!r.ok) { if (r.error !== 'cancel') toast(r.error || 'Không chọn được thư mục'); return; }
+    avatarPick = { filePath: '', folder: r.folder, files: r.files };
+    refreshAvatarChoice(); toast(`Thư mục ${r.count} ảnh`);
+  });
+  on('#btnAvatarClear', 'click', () => { avatarPick = { filePath: '', folder: '', files: [] }; refreshAvatarChoice(); });
+  on('#btnAvatarCancel', 'click', () => { const d=$('#dlgPageAvatar'); if(d) d.close(); });
+  on('#btnAvatarDo', 'click', async () => {
+    const ids = selectedPageIds();
+    if (!ids.length) { toast('Chưa chọn page'); return; }
+    if (!avatarPick.filePath && !avatarPick.folder) { toast('Chọn ảnh hoặc thư mục trước'); return; }
+    const needFolder = ids.length > 1;
+    if (needFolder && !avatarPick.folder) {
+      if (!confirm(`Đã chọn ${ids.length} page nhưng chỉ chọn 1 ảnh — sẽ dùng cùng 1 ảnh cho tất cả. Chọn thư mục để random? Bấm OK để tiếp tục, Cancel để chọn thư mục.`)) return;
+    }
+    const btn = $('#btnAvatarDo'); if (btn) btn.disabled = true;
+    try {
+      setLog(`Đang đổi avatar cho ${ids.length} page...`);
+      const r = await invoke('pages:setAvatar', avatarPick.folder ? { pageIds: ids, folder: avatarPick.folder } : { pageIds: ids, filePath: avatarPick.filePath });
+      if (r && r.ok) toast(`Đã đổi avatar ${r.changed} page`);
+      else toast(`Xong: ${r.changed || 0} ok, ${r.failed || 0} lỗi${r.errors && r.errors[0] ? ' — ' + r.errors[0] : ''}`);
+      const d=$('#dlgPageAvatar'); if(d) d.close();
+      await refresh();
+    } catch (err) { toast(String(err.message || err)); }
+    finally { if (btn) btn.disabled = false; }
+  });
+  on('#btnPagesAvatar', 'click', () => openAvatarDialog(selectedPageIds()));
   on('#btnRestrictCancel', 'click', () => { const d = $('#dlgPageRestrict'); if (d) d.close(); });
   on('#btnRestrictDo', 'click', async () => {
     const ids = selectedPageIds();

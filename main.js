@@ -397,6 +397,87 @@ function registerIpc() {
     return { ok: true, filePath, count: wanted2.length };
   });
 
+  ipcMain.handle('pages:pickImage', async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+      title: 'Chọn ảnh avatar',
+      filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp'] }],
+      properties: ['openFile'],
+    });
+    if (canceled || !filePaths.length) return { ok: false, error: 'cancel' };
+    return { ok: true, filePath: filePaths[0] };
+  });
+  ipcMain.handle('pages:pickFolder', async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+      title: 'Chọn thư mục ảnh',
+      properties: ['openDirectory'],
+    });
+    if (canceled || !filePaths.length) return { ok: false, error: 'cancel' };
+    const dir = filePaths[0];
+    const exts = new Set(['.jpg', '.jpeg', '.png', '.webp']);
+    let files = [];
+    try { files = fs.readdirSync(dir).filter((f) => exts.has(path.extname(f).toLowerCase())).map((f) => path.join(dir, f)); } catch (_) {}
+    if (!files.length) return { ok: false, error: 'Thư mục không có ảnh jpg/png/webp' };
+    return { ok: true, folder: dir, files, count: files.length };
+  });
+  ipcMain.handle('pages:setAvatar', async (e, { pageIds, filePath, folder }) => {
+    const ids = (Array.isArray(pageIds) ? pageIds : [pageIds]).map(String).filter(Boolean);
+    if (!ids.length) return { ok: false, error: 'Chưa chọn page' };
+    const { cookieHeader } = require('./src/exporter');
+    const { setPageAvatar } = require('./src/pages');
+    const batchDelay = store.getSettings().batchDelay || 800;
+    let files = [];
+    if (folder) {
+      try {
+        const exts = new Set(['.jpg', '.jpeg', '.png', '.webp']);
+        files = fs.readdirSync(folder).filter((f) => exts.has(path.extname(f).toLowerCase())).map((f) => path.join(folder, f));
+      } catch (e2) { return { ok: false, error: String(e2.message || e2) }; }
+      if (!files.length) return { ok: false, error: 'Thư mục không có ảnh' };
+    } else if (filePath) {
+      if (!fs.existsSync(filePath)) return { ok: false, error: 'Không tìm thấy file: ' + filePath };
+      files = [filePath];
+    } else {
+      return { ok: false, error: 'Chưa chọn ảnh hoặc thư mục' };
+    }
+    const singleFile = files.length === 1 && !folder;
+    const groups = new Map();
+    for (const pid of ids) {
+      const p = store.getPage(pid);
+      if (!p) continue;
+      const k = p.ownerId || '_unknown';
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(p);
+    }
+    let ok = 0, fail = 0;
+    const errors = [];
+    for (const [ownerId, gpages] of groups) {
+      const owner = store.get(ownerId);
+      const cookie = owner ? (owner.cookie || cookieHeader(owner)) : '';
+      if (!cookie) {
+        for (const p of gpages) { fail++; errors.push(`${p.pageId}: owner không có cookie`); }
+        continue;
+      }
+      const cached = store.getOwnerTokens ? store.getOwnerTokens(ownerId) : null;
+      for (let i = 0; i < gpages.length; i++) {
+        const p = gpages[i];
+        const pick = singleFile ? files[0] : files[Math.floor(Math.random() * files.length)];
+        try {
+          await setPageAvatar(cookie, p.pageId, pick, cached, store);
+          ok++;
+          chrome.status(p.pageId, `Đã đổi avatar ${p.pageId} ← ${path.basename(pick)}`);
+        } catch (err) {
+          fail++;
+          const msg = String(err.message || err).slice(0, 280);
+          errors.push(`${p.pageId}: ${msg}`);
+          chrome.status(p.pageId, `Lỗi avatar ${p.pageId}: ${msg}`);
+        }
+        if (i < gpages.length - 1 && batchDelay > 0) await new Promise((r) => setTimeout(r, batchDelay));
+      }
+      if (batchDelay > 0) await new Promise((r) => setTimeout(r, Math.min(batchDelay, 400)));
+    }
+    // quét lại để cập nhật avatar mới không cần chờ?
+    return { ok: fail === 0, changed: ok, failed: fail, errors: errors.slice(0, 8) };
+  });
+
   ipcMain.handle('export:cookies', async (e, { ids, format }) => {
     const wanted = Array.isArray(ids) && ids.length
       ? ids.map((id) => store.get(id)).filter(Boolean)

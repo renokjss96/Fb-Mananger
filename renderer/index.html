@@ -58,6 +58,7 @@
         <select id="pagesUserFilter" title="Lọc theo user sở hữu"></select>
         <button class="ghost" id="btnPagesScan">↻ Quét Page</button>
         <button class="ghost" id="btnPagesExport">Xuất CSV</button>
+        <button class="ghost" id="btnPagesAvatar">Đổi avatar</button>
         <button class="primary" id="btnPagesBulk">Đổi quốc gia</button>
         <button class="ghost danger-btn" id="btnPagesRemove">Gỡ page</button>
       </div>
@@ -272,6 +273,29 @@
       <span class="grow"></span>
       <button class="ghost" id="btnRestrictCancel">Hủy</button>
       <button class="primary" id="btnRestrictDo">Áp dụng</button>
+    </div>
+  </dialog>
+
+  <dialog id="dlgPageAvatar">
+    <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:6px">
+      <div style="width:38px;height:38px;border-radius:12px;background:#14323a;color:#9ff3e8;display:grid;place-items:center;font-weight:800">◉</div>
+      <div style="flex:1;min-width:0">
+        <h3 id="dlgAvatarTitle" style="margin:0">Đổi avatar</h3>
+        <p class="hint" id="dlgAvatarHint" style="margin:4px 0 0">1 page: chọn 1 ảnh. Nhiều page: chọn thư mục rồi random mỗi page 1 ảnh.</p>
+      </div>
+    </div>
+    <div id="avatarChoiceInfo" class="hint" style="margin:10px 0 8px; background:#fbf8f2;border:1px solid #efe9dd;border-radius:10px;padding:8px 10px">Chưa chọn ảnh/thư mục</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="ghost" id="btnAvatarPickFile" type="button">Chọn ảnh…</button>
+      <button class="ghost" id="btnAvatarPickFolder" type="button">Chọn thư mục…</button>
+      <span class="grow"></span>
+      <button class="ghost" id="btnAvatarClear" type="button">Xóa chọn</button>
+    </div>
+    <p class="hint" style="margin-top:8px">Hỗ trợ jpg/png/webp ≤8MB. Upload qua <code>/profile/picture/upload/?photo_source=57</code> rồi set bằng <code>ProfileCometProfilePictureSetMutation</code>.</p>
+    <div class="dlg-actions">
+      <span class="grow"></span>
+      <button class="ghost" id="btnAvatarCancel">Hủy</button>
+      <button class="primary" id="btnAvatarDo">Đổi avatar</button>
     </div>
   </dialog>
 

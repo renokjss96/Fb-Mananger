@@ -6,6 +6,7 @@ const GRAPH_VERSION = 'v20.0';
 
 const DOC_PAGES = '7710553450524514'; // CometAllPagesListForUser_FullListRefetchQuery
 const DOC_RESTRICT = '9629790297112029'; // CountryRestrictionSettingMutation
+const DOC_AVATAR = '27326177573748994'; // ProfileCometProfilePictureSetMutation
 
 function uidFromCookie(cookie) {
   const m = String(cookie || '').match(/c_user=(\d+)/);
@@ -401,4 +402,109 @@ async function setCountryRestrictionWithCache(cookie, pageId, countryList, isBlo
   }
 }
 
-module.exports = { getManagedPages, getManagedPagesViaGraphQL, getFreshAccessTokenFromCookies, getUserPagesViaGraph, fetchTokens, fetchTokensSmart, parseTokens, setCountryRestriction, setCountryRestrictionWithCache, scanForAccounts, uidFromCookie, resolveActorId, getLogFilePath };
+// ===== Avatar: upload file -> ProfileCometProfilePictureSetMutation =====
+async function uploadPageAvatar(cookie, actorId, filePath, tokens) {
+  const fs = require('fs');
+  const path = require('path');
+  if (!fs.existsSync(filePath)) throw new Error('Không tìm thấy file ảnh: ' + filePath);
+  const t = tokens || await fetchTokensSmart(cookie);
+  const cookieWithIUser = ensureIUserCookie(cookie, actorId);
+  const url = new URL('https://www.facebook.com/profile/picture/upload/');
+  url.searchParams.set('photo_source', '57');
+  url.searchParams.set('profile_id', String(actorId));
+  url.searchParams.set('av', String(actorId));
+  url.searchParams.set('__aaid', '0');
+  url.searchParams.set('__user', String(actorId));
+  url.searchParams.set('__a', '1');
+  url.searchParams.set('__req', '1m');
+  url.searchParams.set('__hs', '20716.HYP:comet_pkg.2.1...0');
+  url.searchParams.set('dpr', '1');
+  url.searchParams.set('__ccg', 'GOOD');
+  url.searchParams.set('__rev', String(t.rev || '1047985973'));
+  url.searchParams.set('__s', String(t.s || ''));
+  url.searchParams.set('__hsi', String(t.hsi || ''));
+  url.searchParams.set('__dyn', String(t.dyn || ''));
+  url.searchParams.set('__csr', String(t.csr || ''));
+  url.searchParams.set('__hsdp', String(t.hsdp || ''));
+  url.searchParams.set('__sjsp', '');
+  url.searchParams.set('__comet_req', '15');
+  url.searchParams.set('fb_dtsg', String(t.dtsg || ''));
+  url.searchParams.set('jazoest', String(t.jazoest || ''));
+  url.searchParams.set('lsd', String(t.lsd || ''));
+  url.searchParams.set('__spin_r', String(t.rev || '1047985973'));
+  url.searchParams.set('__spin_b', 'trunk');
+  url.searchParams.set('__spin_t', String(Math.floor(Date.now() / 1000)));
+  url.searchParams.set('__crn', 'comet.fbweb.CometProfileTimelineListViewRoute');
+  const stat = fs.statSync(filePath);
+  if (stat.size > 8 * 1024 * 1024) throw new Error('Ảnh quá lớn (>8MB)');
+  const buf = fs.readFileSync(filePath);
+  const ext = path.extname(filePath).toLowerCase();
+  const mime = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
+  const blob = new Blob([buf], { type: mime });
+  const fd = new FormData();
+  fd.append('file', blob, path.basename(filePath));
+  const res = await fetch(url.toString(), {
+    method: 'POST',
+    headers: {
+      cookie: cookieWithIUser,
+      'x-fb-lsd': String(t.lsd || ''),
+      origin: 'https://www.facebook.com',
+      'sec-fetch-site': 'same-origin',
+      'sec-fetch-mode': 'cors',
+      'x-asbd-id': '359341',
+    },
+    body: fd,
+  });
+  let text = await res.text();
+  text = text.replace(/^for\s*\(\s*;\s*;\s*\)\s*;\s*/, '');
+  let json;
+  try { json = JSON.parse(text); } catch { throw new Error('Upload avatar không phải JSON: ' + text.slice(0, 600)); }
+  if (json && json.error) throw new Error(json.errorSummary || json.errorDescription || `FB upload error ${json.error}`);
+  if (json.errors) throw new Error(json.errors[0]?.message || JSON.stringify(json.errors).slice(0, 500));
+  // FB trả fbid/photo_id ở nhiều dạng: payload.fbid, payload.photoID, data.fbid...
+  const photoId = json?.payload?.fbid || json?.payload?.photoID || json?.payload?.photo_id || json?.fbid || json?.id || json?.payload?.id || null;
+  // fallback: tìm số dài 15-20 chữ số
+  let found = photoId ? String(photoId) : '';
+  if (!found) {
+    const m = text.match(/"fbid"\s*:\s*"(\d+)"/) || text.match(/"photo_id"\s*:\s*"(\d+)"/) || text.match(/"id"\s*:\s*"(\d{15,20})"/);
+    if (m) found = m[1];
+  }
+  if (!found) throw new Error('Không lấy được photo_id sau upload: ' + text.slice(0, 800));
+  return { photoId: String(found), raw: json };
+}
+
+async function setPageAvatar(cookie, pageId, filePath, cachedTokens, store) {
+  let actorId = String(pageId);
+  if (store && typeof store.getPage === 'function') {
+    try { const p = store.getPage(pageId); if (p && p.actorId) actorId = String(p.actorId); else if (p && p.additional_profile_id) actorId = String(p.additional_profile_id); } catch (_) {}
+  }
+  if (actorId === String(pageId)) {
+    try { actorId = await resolveActorId(cookie, pageId); } catch (_) {}
+  }
+  const tokens = cachedTokens && cachedTokens.dtsg ? cachedTokens : await fetchTokensSmart(cookie);
+  const up = await uploadPageAvatar(cookie, actorId, filePath, tokens);
+  const photoId = up.photoId;
+  const variables = {
+    input: {
+      attribution_id_v2: `ProfileCometTimelineListViewRoot.react,comet.profile.timeline.list,tap_bookmark,${Date.now()},353802,${actorId},,`,
+      caption: '',
+      existing_photo_id: String(photoId),
+      expiration_time: null,
+      profile_id: String(actorId),
+      profile_pic_method: 'EXISTING',
+      profile_pic_source: 'TIMELINE',
+      scaled_crop_rect: { height: 0.59782, width: 1, x: 0, y: 0.0058 },
+      skip_cropping: true,
+      actor_id: String(actorId),
+      client_mutation_id: '2',
+    },
+    isPage: false,
+    isProfile: true,
+    scale: 1,
+    __relay_internal__pv__ProfileGeminiIsCoinFlipEnabledrelayprovider: false,
+  };
+  const json = await graphQL(cookie, tokens, DOC_AVATAR, 'ProfileCometProfilePictureSetMutation', variables);
+  return { ok: true, photoId, actorId, payload: json?.data || json };
+}
+
+module.exports = { getManagedPages, getManagedPagesViaGraphQL, getFreshAccessTokenFromCookies, getUserPagesViaGraph, fetchTokens, fetchTokensSmart, parseTokens, setCountryRestriction, setCountryRestrictionWithCache, uploadPageAvatar, setPageAvatar, scanForAccounts, uidFromCookie, resolveActorId, getLogFilePath };
