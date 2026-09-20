@@ -365,4 +365,4 @@ async function setCountryRestrictionWithCache(cookie, pageId, countryList, isBlo
   }
 }
 
-module.exports = { getManagedPages, getManagedPagesViaGraphQL, getFreshAccessTokenFromCookies, getUserPagesViaGraph, fetchTokens, fetchTokensViaChrome, fetchTokensSmart, parseTokens, setCountryRestriction, setCountryRestrictionWithCache, setCountryRestrictionViaChrome, scanForAccounts, uidFromCookie };
+module.exports = { getManagedPages, getManagedPagesViaGraphQL, getFreshAccessTokenFromCookies, getUserPagesViaGraph, fetchTokens, fetchTokensSmart, parseTokens, setCountryRestriction, setCountryRestrictionWithCache, scanForAccounts, uidFromCookie, resolveActorId };
