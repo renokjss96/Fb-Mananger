@@ -222,19 +222,37 @@ async function fetchTokensSmart(cookie) {
 
 async function graphQL(cookie, tokens, docId, friendlyName, variables) {
   const uid = uidFromCookie(cookie) || '0';
+  // av/__user phải là actor_id khi mutation theo page (CountryRestrictionSettingMutation).
+  // Nếu variables.input.actor_id có thì dùng nó, không thì fallback uid.
+  let av = uid;
+  try {
+    const actorFromVars = variables && variables.input && variables.input.actor_id;
+    if (actorFromVars) av = String(actorFromVars);
+  } catch (_) {}
   const body = new URLSearchParams({
-    av: uid,
-    __user: uid,
+    av,
+    __user: av,
     __a: '1',
+    __req: 'w',
+    __hs: tokens.hsi ? `20716.HYP:comet_plat_default_pkg.2.1..0` : '',
+    __hsi: tokens.hsi || '',
+    __rev: tokens.rev || '1047985973',
+    __s: '',
+    __hblp: '1',
+    __comet_req: '1',
     fb_dtsg: tokens.dtsg,
     lsd: tokens.lsd,
     jazoest: tokens.jazoest,
+    __spin_r: tokens.rev || '1047985973',
+    __spin_b: 'trunk',
+    __spin_t: String(Math.floor(Date.now() / 1000)),
     fb_api_caller_class: 'RelayModern',
     fb_api_req_friendly_name: friendlyName,
     variables: JSON.stringify(variables),
     doc_id: docId,
     server_timestamps: 'true',
   });
+  // x-fb-lsd bắt buộc phải khớp body.lsd — như curl của anh: x-fb-lsd: rIXb1pDT...
   const res = await fetch('https://www.facebook.com/api/graphql/', {
     method: 'POST',
     headers: {
@@ -246,13 +264,14 @@ async function graphQL(cookie, tokens, docId, friendlyName, variables) {
       'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36',
       'sec-fetch-site': 'same-origin',
       'sec-fetch-mode': 'cors',
+      'x-asbd-id': '359341',
     },
     body,
   });
   const text = await res.text();
   let json;
-  try { json = JSON.parse(text); } catch { throw new Error('GraphQL trả về không phải JSON: ' + text.slice(0, 400)); }
-  if (json.errors) throw new Error(json.errors[0]?.message || JSON.stringify(json.errors).slice(0, 500));
+  try { json = JSON.parse(text); } catch { throw new Error('GraphQL trả về không phải JSON: ' + text.slice(0, 600)); }
+  if (json.errors) throw new Error(json.errors[0]?.message || JSON.stringify(json.errors).slice(0, 600));
   return json;
 }
 
