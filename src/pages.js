@@ -131,6 +131,89 @@ async function fetchTokens(cookie) {
   return t;
 }
 
+async function fetchTokensViaChrome(cookie) {
+  const { toCdpCookies } = require('./exporter');
+  const { findBundledChrome, bundledChromedriver, detectChromium } = require('./detect');
+  const fs = require('fs');
+  const path = require('path');
+  const { Builder } = require('selenium-webdriver');
+  const chrome = require('selenium-webdriver/chrome');
+  let exe = findBundledChrome();
+  let driverBin = exe ? bundledChromedriver() : '';
+  if (!exe) {
+    const d = detectChromium();
+    if (!d) throw new Error('Không tìm thấy Chrome để lấy dtsg');
+    exe = d.path;
+    driverBin = '';
+  }
+  const c = String(cookie || '').trim();
+  // parse cookie string to cdp cookies for injection
+  let raw = [];
+  try {
+    if (c.includes('c_user=')) {
+      const parts = c.split(';').map((s) => s.trim()).filter(Boolean);
+      raw = parts.map((kv) => { const i = kv.indexOf('='); return i < 0 ? null : { name: kv.slice(0, i).trim(), value: kv.slice(i + 1).trim() }; }).filter(Boolean);
+    }
+  } catch (_) {}
+  // fallback to exporter helper if available
+  try {
+    const acc = { cookie: c, cookies: [] };
+    const cd = toCdpCookies(acc);
+    if (cd && cd.length) raw = cd;
+    else if (!raw.length) raw = cd;
+  } catch (_) {}
+  const profileDir = path.join(require('os').tmpdir(), 'fb-dtsg-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6));
+  fs.mkdirSync(profileDir, { recursive: true });
+  const opts = new chrome.Options();
+  opts.setChromeBinaryPath(exe);
+  opts.addArguments(`--user-data-dir=${profileDir}`, '--no-first-run', '--no-default-browser-check', '--disable-blink-features=AutomationControlled', '--lang=vi-VN,vi,en-US,en');
+  opts.excludeSwitches('enable-automation');
+  opts.addArguments('--headless=new', '--disable-gpu', '--window-size=1280,900');
+  let builder = new Builder().forBrowser('chrome').setChromeOptions(opts);
+  const svc = driverBin ? new chrome.ServiceBuilder(driverBin) : null;
+  if (svc) builder = builder.setChromeService(svc);
+  if (!driverBin) {
+    const mng = path.join(path.dirname(require.resolve('selenium-webdriver/package.json')), 'bin', 'windows', 'selenium-manager.exe');
+    if (fs.existsSync(mng)) process.env.SE_MANAGER_PATH = mng;
+  } else process.env.SE_CHROMEDRIVER = driverBin;
+  const driver = await builder.build();
+  try {
+    await driver.get('https://www.facebook.com/');
+    await driver.sleep(1000);
+    for (const k of raw) {
+      const p = { name: k.name, value: String(k.value), domain: k.domain || '.facebook.com', path: k.path || '/', secure: k.secure !== false, httpOnly: !!k.httpOnly };
+      if (k.expires && k.expires > 0) p.expiry = Math.floor(k.expires);
+      try { await driver.manage().addCookie(p); } catch (_) { try { p.domain = 'facebook.com'; await driver.manage().addCookie(p); } catch (__) {} }
+    }
+    await driver.get('https://www.facebook.com/');
+    await driver.sleep(2800);
+    const t = await driver.executeScript(`
+      const html=document.documentElement.outerHTML;
+      function m(re){const x=html.match(re); return x?x[1]:'';}
+      return {dtsg: m(/"DTSGInitialData"[^}]*"token":"([^"]+)"/) || m(/fb_dtsg":"([^"]+)"/) || m(/name="fb_dtsg" value="([^"]+)"/) || '', lsd: m(/"LSD"[^}]*"token":"([^"]+)"/) || '', jazoest: (html.match(/jazoest=(\\d+)/)||[])[1]||'25537', rev: (html.match(/"client_revision":(\\d+)/)||[])[1]||'1047982283', hsi: m(/"hsi":"([^"]+)"/)||''};
+    `);
+    if (!t || !t.dtsg) throw new Error('Chrome: không lấy được fb_dtsg');
+    if (!t.lsd) throw new Error('Chrome: không lấy được lsd');
+    return t;
+  } finally {
+    try { await driver.quit(); } catch (_) {}
+    try { fs.rmSync(profileDir, { recursive: true, force: true }); } catch (_) {}
+  }
+}
+
+async function fetchTokensSmart(cookie) {
+  try {
+    return await fetchTokens(cookie);
+  } catch (e) {
+    const msg = String(e.message || '');
+    if (/fb_dtsg|DTSG|lsd/i.test(msg)) {
+      // Node fetch bị FB chặn (400 Sorry...), fallback qua Chrome headless
+      return await fetchTokensViaChrome(cookie);
+    }
+    throw e;
+  }
+}
+
 async function graphQL(cookie, tokens, docId, friendlyName, variables) {
   const uid = uidFromCookie(cookie) || '0';
   const body = new URLSearchParams({
@@ -180,7 +263,7 @@ function extractPages(json) {
 }
 
 async function getManagedPagesViaGraphQL(cookie) {
-  const tokens = await fetchTokens(cookie);
+  const tokens = await fetchTokensSmart(cookie);
   const json = await graphQL(cookie, tokens, DOC_PAGES, 'CometAllPagesListForUser_FullListRefetchQuery', { count: 100 });
   const edges = extractPages(json);
   return edges.map((e) => {
@@ -216,7 +299,7 @@ async function getManagedPages(cookie) {
 
 async function setCountryRestriction(cookie, pageId, countryList, isBlocklist) {
   const list = (Array.isArray(countryList) ? countryList : []).map((s) => String(s).trim().toUpperCase()).filter(Boolean);
-  const tokens = await fetchTokens(cookie);
+  const tokens = await fetchTokensSmart(cookie);
   const variables = {
     input: {
       country_list: list,
@@ -245,7 +328,7 @@ async function scanForAccounts(accounts, onProgress, store) {
       // Cache dtsg/lsd for later setCountryRestriction to avoid refetch + avoid expiry
       if (store && typeof store.setOwnerTokens === 'function') {
         try {
-          const tokens = await fetchTokens(cookie);
+          const tokens = await fetchTokensSmart(cookie);
           store.setOwnerTokens(a.id, { dtsg: tokens.dtsg, lsd: tokens.lsd, jazoest: tokens.jazoest, rev: tokens.rev, hsi: tokens.hsi });
         } catch (_) { /* ignore token cache fail */ }
       }
@@ -275,7 +358,7 @@ async function scanForAccounts(accounts, onProgress, store) {
 async function setCountryRestrictionWithCache(cookie, pageId, countryList, isBlocklist, cachedTokens) {
   const list = (Array.isArray(countryList) ? countryList : []).map((s) => String(s).trim().toUpperCase()).filter(Boolean);
   let tokens = cachedTokens && cachedTokens.dtsg && cachedTokens.lsd ? cachedTokens : null;
-  if (!tokens) tokens = await fetchTokens(cookie);
+  if (!tokens) tokens = await fetchTokensSmart(cookie);
   const variables = {
     input: {
       country_list: list,
@@ -291,8 +374,8 @@ async function setCountryRestrictionWithCache(cookie, pageId, countryList, isBlo
     return { ok: true, payload, country_list: list, is_blocklist: !!isBlocklist };
   } catch (e) {
     // If cached token failed, retry with fresh fetch once
-    if (cachedTokens && /fb_dtsg|DTSG|lsd/i.test(String(e.message || ''))) {
-      const fresh = await fetchTokens(cookie);
+    if (/fb_dtsg|DTSG|lsd/i.test(String(e.message || ''))) {
+      const fresh = await fetchTokensSmart(cookie);
       const json = await graphQL(cookie, fresh, DOC_RESTRICT, 'CountryRestrictionSettingMutation', variables);
       const payload = json?.data?.country_restriction_setting_update || json?.data?.update_country_restriction || null;
       if (json.errors) throw new Error(json.errors[0].message);
@@ -302,4 +385,4 @@ async function setCountryRestrictionWithCache(cookie, pageId, countryList, isBlo
   }
 }
 
-module.exports = { getManagedPages, getManagedPagesViaGraphQL, getFreshAccessTokenFromCookies, getUserPagesViaGraph, fetchTokens, parseTokens, setCountryRestriction, setCountryRestrictionWithCache, scanForAccounts, uidFromCookie };
+module.exports = { getManagedPages, getManagedPagesViaGraphQL, getFreshAccessTokenFromCookies, getUserPagesViaGraph, fetchTokens, fetchTokensViaChrome, fetchTokensSmart, parseTokens, setCountryRestriction, setCountryRestrictionWithCache, scanForAccounts, uidFromCookie };
