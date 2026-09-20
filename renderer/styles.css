@@ -408,7 +408,7 @@ button.danger-btn:hover { border-color: var(--dead); }
   border-bottom: 1px solid #2a354a;
 }
 .log-head .text { color: #9aa6bb; }
-#logBox {
+#logBox, #logBoxPages {
   margin: 0;
   padding: 10px 12px;
   overflow-x: hidden;

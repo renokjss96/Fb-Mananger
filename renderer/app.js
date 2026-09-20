@@ -51,20 +51,27 @@ function appendLogLine(entry) {
   logs.push(entry);
   if (logs.length > 200) logs = logs.slice(-200);
   renderLogs();
-  const nick = entry.id ? displayName(accounts.find((x) => x.id === entry.id) || { uid: entry.id }) : '';
-  $('#logText').textContent = (nick ? `[${nick}] ` : '') + (entry.message || '');
+  const a = accounts.find((x) => x.id === entry.id);
+  const nick = entry.id ? displayName(a || { uid: entry.id }) : '';
+  const txt = (nick ? `[${nick}] ` : '') + (entry.message || '');
+  const bar = $('#logText');
+  if (bar) bar.textContent = txt;
 }
 
 function renderLogs() {
+  const line = (e) => {
+    const a = accounts.find((x) => x.id === e.id);
+    const hasAcc = !!a;
+    const nick = e.id ? displayName(a || { uid: e.id }) : '';
+    // status của page: không có account tương ứng thì để trống, tránh nhúng UID page sai
+    const prefix = e.id && hasAcc ? `[${nick}] ` : (e.id ? '' : '');
+    return `${fmtLogTime(e.time)}  ${prefix}${e.message || ''}`;
+  };
+  const text = logs.map(line).join('\n');
   const box = $('#logBox');
-  if (!box) return;
-  box.textContent = logs.map((e) => {
-    const nick = e.id ? (displayName(accounts.find((x) => x.id === e.id) || { uid: e.id })) : '';
-    return `${fmtLogTime(e.time)}  ${nick ? '[' + nick + '] ' : ''}${e.message || ''}`;
-  }).join('\n');
-  box.scrollTop = box.scrollHeight;
+  if (box) { box.textContent = text; box.scrollTop = box.scrollHeight; }
   const box2 = $('#logBoxPages');
-  if (box2) { box2.textContent = box.textContent; box2.scrollTop = box2.scrollHeight; }
+  if (box2) { box2.textContent = text; box2.scrollTop = box2.scrollHeight; }
 }
 
 function setLog(msg) {
@@ -316,14 +323,12 @@ function renderPagesTable() {
     const pub = p.is_published == null ? '<span class="tag none">—</span>' : (p.is_published ? '<span class="tag live">Đã XB</span>' : '<span class="tag dead">Chưa XB</span>');
     return `<tr data-page-id="${esc(p.pageId)}" class="${selectedPages.has(p.pageId) ? 'picked' : ''}">
       <td class="chk"><input type="checkbox" class="row-chk-page" data-page-id="${esc(p.pageId)}" ${selectedPages.has(p.pageId) ? 'checked' : ''} /></td>
-      <td><div class="page-cell"><div class="page-av">${av}</div><div><div class="page-name">${esc(p.name || p.pageId)}</div><div class="page-sub">${esc(p.url || '')}</div></div></div></td>
-      <td class="uid">${esc(p.pageId)}</td>
+      <td><div class="page-cell"><div class="page-av">${av}</div><div><div class="page-name">${esc(p.name || p.pageId)}</div></div></div></td>
       <td style="text-align:right; font-family: ui-monospace, Consolas, monospace; font-size:12.5px">${esc(fan)}</td>
       <td>${pub}</td>
       <td>${esc(p.category || '—')}</td>
       <td class="owner">${esc(ownerLabel)}<small>${esc(p.ownerUid || '')}</small></td>
       <td>${restrictionLabel(p)}</td>
-      <td class="actions"><button class="mini btn-page-restrict" data-page-id="${esc(p.pageId)}">Đổi quốc gia</button></td>
     </tr>`;
   }).join('');
   const empty = $('#emptyPages');
