@@ -142,10 +142,20 @@ async function fetchTokens(cookie) {
 
 async function fetchTokensSmart(cookie) { return fetchTokens(cookie); }
 
+function appendRestrictLog(obj) {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const dir = path.join(__dirname, '..', 'logs');
+    fs.mkdirSync(dir, { recursive: true });
+    const file = path.join(dir, 'country-restrict.log');
+    const line = `[${new Date().toISOString()}] ${JSON.stringify(obj)}\n`;
+    fs.appendFileSync(file, line, 'utf8');
+  } catch (_) {}
+}
+
 async function graphQL(cookie, tokens, docId, friendlyName, variables) {
   const uid = uidFromCookie(cookie) || '0';
-  // av/__user phải là actor_id khi mutation theo page (CountryRestrictionSettingMutation).
-  // Nếu variables.input.actor_id có thì dùng nó, không thì fallback uid.
   let av = uid;
   try {
     const actorFromVars = variables && variables.input && variables.input.actor_id;
@@ -174,7 +184,9 @@ async function graphQL(cookie, tokens, docId, friendlyName, variables) {
     doc_id: docId,
     server_timestamps: 'true',
   });
-  // x-fb-lsd bắt buộc phải khớp body.lsd — như curl của anh: x-fb-lsd: rIXb1pDT...
+  const bodyStr = body.toString();
+  const reqLog = { kind: 'graphql_req', friendlyName, docId, av, actor_id: (variables && variables.input && variables.input.actor_id) || '', country_list: (variables && variables.input && variables.input.country_list) || [], is_blocklist: variables && variables.input && variables.input.is_blocklist, c_user: uid, dtsg: String(tokens.dtsg || '').slice(0, 24) + '...', lsd: tokens.lsd, hsi: tokens.hsi, rev: tokens.rev, body: bodyStr.slice(0, 1200) };
+  appendRestrictLog(reqLog);
   const res = await fetch('https://www.facebook.com/api/graphql/', {
     method: 'POST',
     headers: {
@@ -191,11 +203,11 @@ async function graphQL(cookie, tokens, docId, friendlyName, variables) {
     body,
   });
   let text = await res.text();
-  // FB thường prefix "for (;;);" — phải strip trước khi parse
+  const rawText = text;
   text = text.replace(/^for\s*\(\s*;\s*;\s*\)\s*;\s*/, '');
   let json;
-  try { json = JSON.parse(text); } catch { throw new Error('GraphQL trả về không phải JSON: ' + text.slice(0, 600)); }
-  // FB trả error dạng {"__ar":1,"error":1357032,"errorSummary":"..."} — không nằm trong json.errors
+  try { json = JSON.parse(text); } catch { appendRestrictLog({ kind: 'graphql_res', friendlyName, docId, status: res.status, raw: rawText.slice(0, 2000) }); throw new Error('GraphQL trả về không phải JSON: ' + text.slice(0, 600)); }
+  appendRestrictLog({ kind: 'graphql_res', friendlyName, docId, status: res.status, json: JSON.stringify(json).slice(0, 3000) });
   if (json && json.error) {
     const msg = json.errorSummary || json.errorDescription || `FB error ${json.error} ${json.errorDescription || ''}`;
     throw new Error(String(msg).slice(0, 600) || `FB error ${json.error}`);
