@@ -116,7 +116,11 @@ function parseTokens(html) {
   const jazoest = html.match(/jazoest=(\d+)/)?.[1] || '25537';
   const rev = html.match(/"client_revision":(\d+)/)?.[1] || '1047982283';
   const hsi = html.match(/"hsi":"([^"]+)"/)?.[1] || '';
-  return { dtsg, lsd, jazoest, rev, hsi };
+  const s = html.match(/"__s":"([^"]+)"/)?.[1] || html.match(/__s["']\s*[:=]\s*["']([^"']+)["']/)?.[1] || '';
+  const dyn = html.match(/"__dyn":"([^"]+)"/)?.[1] || '';
+  const csr = html.match(/"__csr":"([^"]+)"/)?.[1] || '';
+  const hsdp = html.match(/"__hsdp":"([^"]+)"/)?.[1] || '';
+  return { dtsg, lsd, jazoest, rev, hsi, s, dyn, csr, hsdp };
 }
 
 async function fetchTokens(cookie) {
@@ -192,9 +196,12 @@ async function graphQL(cookie, tokens, docId, friendlyName, variables) {
     __hs: tokens.hsi ? `20716.HYP:comet_plat_default_pkg.2.1..0` : '',
     __hsi: tokens.hsi || '',
     __rev: tokens.rev || '1047985973',
-    __s: '',
+    __s: tokens.s || '',
+    __hsdp: tokens.hsdp || '',
     __hblp: '1',
     __comet_req: '1',
+    __dyn: tokens.dyn || '',
+    __csr: tokens.csr || '',
     fb_dtsg: tokens.dtsg,
     lsd: tokens.lsd,
     jazoest: tokens.jazoest,
@@ -208,7 +215,7 @@ async function graphQL(cookie, tokens, docId, friendlyName, variables) {
     server_timestamps: 'true',
   });
   const bodyStr = body.toString();
-  const reqLog = { kind: 'graphql_req', friendlyName, docId, av, actor_id: (variables && variables.input && variables.input.actor_id) || '', country_list: (variables && variables.input && variables.input.country_list) || [], is_blocklist: variables && variables.input && variables.input.is_blocklist, c_user: uid, dtsg: String(tokens.dtsg || '').slice(0, 24) + '...', lsd: tokens.lsd, hsi: tokens.hsi, rev: tokens.rev, body: bodyStr.slice(0, 1200) };
+  const reqLog = { kind: 'graphql_req', friendlyName, docId, av, actor_id: (variables && variables.input && variables.input.actor_id) || '', country_list: (variables && variables.input && variables.input.country_list) || [], is_blocklist: variables && variables.input && variables.input.is_blocklist, c_user: uid, dtsg: String(tokens.dtsg || '').slice(0, 24) + '...', lsd: tokens.lsd, hsi: tokens.hsi, rev: tokens.rev, s: tokens.s ? tokens.s.slice(0, 32) + '...' : '', hsdp: tokens.hsdp ? 'yes' : 'no', body: bodyStr.slice(0, 1400) };
   appendRestrictLog(reqLog);
   const res = await fetch('https://www.facebook.com/api/graphql/', {
     method: 'POST',
@@ -331,7 +338,7 @@ async function scanForAccounts(accounts, onProgress, store) {
       if (store && typeof store.setOwnerTokens === 'function') {
         try {
           const tokens = await fetchTokensSmart(cookie);
-          store.setOwnerTokens(a.id, { dtsg: tokens.dtsg, lsd: tokens.lsd, jazoest: tokens.jazoest, rev: tokens.rev, hsi: tokens.hsi });
+          store.setOwnerTokens(a.id, { dtsg: tokens.dtsg, lsd: tokens.lsd, jazoest: tokens.jazoest, rev: tokens.rev, hsi: tokens.hsi, s: tokens.s, dyn: tokens.dyn, csr: tokens.csr, hsdp: tokens.hsdp });
         } catch (_) { /* ignore token cache fail */ }
       }
       for (const p of pages) {

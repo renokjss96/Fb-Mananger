@@ -285,7 +285,7 @@ class Store {
   setOwnerTokens(ownerId, tokens) {
     if (!ownerId) return;
     if (!this.data.ownerTokens) this.data.ownerTokens = {};
-    this.data.ownerTokens[String(ownerId)] = { ...tokens, updatedAt: nowIso() };
+    this.data.ownerTokens[String(ownerId)] = { ...tokens, s: tokens.s || '', dyn: tokens.dyn || '', csr: tokens.csr || '', hsdp: tokens.hsdp || '', updatedAt: nowIso() };
     this.save();
   }
   getOwnerTokens(ownerId) {
