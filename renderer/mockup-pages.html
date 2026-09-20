@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <title>FB Manager — Mockup Page</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    /* chỉ để mockup hiện dialog + menu cùng lúc, không sửa styles.css */
+    dialog#dlgPageRestrict { display: block; position: fixed; left: 50%; top: 18%; transform: translateX(-50%); z-index: 40; }
+    .mock-backdrop { position: fixed; inset: 0; background: rgba(11, 18, 32, .45); z-index: 35; }
+  </style>
+</head>
+<body>
+  <aside id="sidebar">
+    <div class="brand">
+      <div class="logo">FB</div>
+      <div>
+        <div class="brand-name">FB Manager</div>
+        <div class="brand-sub">v0.1.1 · cookie desk</div>
+      </div>
+    </div>
+    <nav>
+      <button class="nav-item"><span class="nav-ico">◎</span> Tài khoản</button>
+      <button class="nav-item active"><span class="nav-ico">▭</span> Page</button>
+      <button class="nav-item"><span class="nav-ico">⚙</span> Cài đặt</button>
+    </nav>
+    <div class="side-stats">
+      128 Page · 3 nick có cookie<br />74 đang chặn
+    </div>
+    <div class="side-foot">Chrome profile riêng từng nick<br />cookie copy 3 format</div>
+  </aside>
+
+  <section id="workspace">
+    <header class="topbar">
+      <div>
+        <h1>Page</h1>
+        <p class="page-desc">Quét Page từ nick có cookie, đổi hạn chế quốc gia theo đúng tài khoản sở hữu.</p>
+      </div>
+      <div class="top-actions">
+        <input type="search" placeholder="Tìm tên page, ID, danh mục…" value="" />
+        <select title="Lọc theo user sở hữu">
+          <option>Tất cả user</option>
+          <option>10001 · Nguyễn A</option>
+          <option>10002 · Trần B</option>
+        </select>
+        <button class="ghost">↻ Quét Page</button>
+        <button class="ghost">Xuất CSV</button>
+        <button class="primary">Đổi quốc gia (3)</button>
+        <button class="ghost danger-btn">Gỡ page</button>
+      </div>
+    </header>
+
+    <main class="view" id="viewPages" style="display:flex;flex-direction:column;overflow:hidden">
+      <div class="kpi">
+        <div class="card"><div class="k">Tổng Page</div><div class="v">128</div></div>
+        <div class="card"><div class="k">Đang chặn</div><div class="v">74</div></div>
+        <div class="card"><div class="k">Whitelist</div><div class="v">12</div></div>
+        <div class="card"><div class="k">Đã chọn</div><div class="v">3</div></div>
+      </div>
+
+      <div class="filter-bar">
+        <div class="filter-group">
+          <span class="filter-label">Chặn</span>
+          <button class="chip active">Tất cả</button>
+          <button class="chip">Chặn CA</button>
+          <button class="chip">Chặn VN</button>
+          <button class="chip">Không chặn</button>
+          <button class="chip">Whitelist</button>
+        </div>
+        <span class="hint" style="margin:0">Lọc kết hợp: tìm kiếm AND user sở hữu AND trạng thái quốc gia</span>
+      </div>
+
+      <div class="panel">
+        <table>
+          <thead>
+            <tr>
+              <th class="chk"><input type="checkbox" checked /></th>
+              <th>Page</th>
+              <th>ID</th>
+              <th>Danh mục</th>
+              <th>Quản lý bởi</th>
+              <th>Hạn chế quốc gia</th>
+              <th style="text-align:right">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="picked">
+              <td class="chk"><input type="checkbox" checked /></td>
+              <td>
+                <div class="page-cell">
+                  <div class="page-av">TN</div>
+                  <div>
+                    <div class="page-name">Tech News Vietnam</div>
+                    <div class="page-sub">facebook.com/technewsvn</div>
+                  </div>
+                </div>
+              </td>
+              <td class="uid">123456789</td>
+              <td>Media</td>
+              <td class="owner">10001 · Nguyễn A<small>Cookie hợp lệ</small></td>
+              <td>
+                <span class="tag block">Chặn</span>
+                <span class="country"><span>CA</span><span>US</span></span>
+              </td>
+              <td class="actions"><button class="mini">⋯ Đổi quốc gia</button></td>
+            </tr>
+            <tr class="picked">
+              <td class="chk"><input type="checkbox" checked /></td>
+              <td>
+                <div class="page-cell">
+                  <div class="page-av">SO</div>
+                  <div>
+                    <div class="page-name">Shop Online</div>
+                    <div class="page-sub">facebook.com/shoponline</div>
+                  </div>
+                </div>
+              </td>
+              <td class="uid">234567890</td>
+              <td>Shopping</td>
+              <td class="owner">10002 · Trần B<small>Cookie hợp lệ</small></td>
+              <td>
+                <span class="tag allow">Whitelist</span>
+                <span class="country"><span>VN</span></span>
+              </td>
+              <td class="actions"><button class="mini">⋯ Đổi quốc gia</button></td>
+            </tr>
+            <tr>
+              <td class="chk"><input type="checkbox" /></td>
+              <td>
+                <div class="page-cell">
+                  <div class="page-av">LC</div>
+                  <div>
+                    <div class="page-name">Cộng đồng địa phương</div>
+                    <div class="page-sub">facebook.com/localcommunity</div>
+                  </div>
+                </div>
+              </td>
+              <td class="uid">345678901</td>
+              <td>Community</td>
+              <td class="owner">10001 · Nguyễn A<small>Cookie hợp lệ</small></td>
+              <td><span class="tag none">Không chặn</span></td>
+              <td class="actions"><button class="mini">⋯ Đổi quốc gia</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="log-panel">
+        <div class="log-head"><span>Nhật ký</span><button class="text">Xóa log</button></div>
+        <pre id="logBox">12:31  Quét Page xong: 128 page từ 3 nick
+12:32  Đổi quốc gia 3 page · nhóm 2 owner
+12:32  ✓ Tech News Vietnam — chặn CA, US
+12:32  ✓ Shop Online — chỉ cho phép VN</pre>
+      </div>
+    </main>
+
+    <footer id="logbar">
+      <span>Sẵn sàng. Đã chọn 3 Page.</span>
+      <button class="text">Đóng mọi Chrome</button>
+    </footer>
+  </section>
+
+  <div class="ctx-menu" style="right:48px; top:340px; left:auto;">
+    <div class="ctx-head">Tech News Vietnam<span>123456789</span></div>
+    <div class="ctx-sep"></div>
+    <button>Mở Page</button>
+    <button>Sao chép Page ID</button>
+    <div class="ctx-sep"></div>
+    <button>Chặn CA</button>
+    <button>Chặn VN</button>
+    <button>Chặn CA + US</button>
+    <button>Chỉ cho phép VN</button>
+    <button>Gỡ hết chặn</button>
+    <button>Tùy chỉnh…</button>
+    <div class="ctx-sep"></div>
+    <button class="danger">Xóa khỏi danh sách</button>
+  </div>
+
+  <div class="mock-backdrop"></div>
+  <dialog id="dlgPageRestrict" open>
+    <h3>Đổi hạn chế quốc gia</h3>
+    <p class="hint">Đã chọn: 3 Page · Owner: Nguyễn A (2), Trần B (1). Áp dụng bằng cookie đúng tài khoản sở hữu.</p>
+    <label>Chế độ</label>
+    <div style="display:flex;flex-direction:column;gap:6px;margin:6px 0 8px">
+      <label class="radio"><input type="radio" name="restrictMode" checked /> Chặn (blocklist)</label>
+      <label class="radio"><input type="radio" name="restrictMode" /> Chỉ cho phép (allowlist)</label>
+      <label class="radio"><input type="radio" name="restrictMode" /> Gỡ hết chặn</label>
+    </div>
+    <label>Quốc gia (ISO2, cách nhau dấu phẩy)</label>
+    <input type="text" value="CA, US, VN" />
+    <p class="hint" style="margin-top:6px">Ví dụ: <code>CA</code> → chặn Canada. Để trống khi gỡ hết hạn chế.</p>
+    <div class="dlg-actions">
+      <span class="grow"></span>
+      <button class="ghost">Hủy</button>
+      <button class="primary">Áp dụng</button>
+    </div>
+  </dialog>
+</body>
+</html>

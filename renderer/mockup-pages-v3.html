@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <title>FB Manager — Mockup Page v3 (Bảng + Drawer)</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    /* ===== chỉ dùng cho mockup, sẽ gộp vào styles.css khi code thật ===== */
+    .view-toggle { display: inline-flex; background: #fff; border: 1px solid #e2dccf; border-radius: 10px; padding: 3px; gap: 2px; }
+    .view-toggle button { padding: 5px 10px; font-size: 12px; background: transparent; border-radius: 8px; color: var(--muted); }
+    .view-toggle button.active { background: var(--ink-2); color: #7ee7db; font-weight: 650; }
+
+    .kpi.kpi-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+    .kpi .delta { font-size: 11px; margin-top: 3px; font-weight: 650; }
+    .kpi .delta.up { color: var(--live); }
+    .kpi .delta.down { color: var(--dead); }
+    .kpi .delta.flat { color: var(--muted); }
+    .kpi .card.alert { border-color: #f0c7c3; background: #fffaf9; }
+    .kpi .card.alert .v { color: var(--dead); }
+
+    .badge { display: inline-flex; align-items: center; padding: 2px 7px; border-radius: 6px; font-size: 10.5px; font-weight: 700; letter-spacing: .3px; }
+    .badge.admin { background: #e8f1fb; color: #2b6cb0; }
+    .badge.editor { background: #f3edfb; color: #7c4dbd; }
+    .badge.mod { background: #eef0f4; color: #667085; }
+    .badge.pub { background: #e8f7ee; color: var(--live); }
+    .badge.unpub { background: #fdf3e5; color: var(--warn); }
+    .badge.restricted { background: #fdecea; color: var(--dead); }
+
+    .col-num { text-align: right; font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; white-space: nowrap; }
+    .spark { display: inline-flex; align-items: flex-end; gap: 1.5px; height: 16px; margin-right: 7px; vertical-align: -3px; }
+    .spark i { width: 3px; border-radius: 1px; display: block; background: #cfe7e3; }
+    .spark.up i { background: #9ddbd2; }
+    .spark.down i { background: #f0c0bb; }
+    .trend { font-size: 11px; font-weight: 700; }
+    .trend.up { color: var(--live); }
+    .trend.down { color: var(--dead); }
+    .trend.flat { color: var(--muted); }
+    .sortable { cursor: pointer; user-select: none; }
+    .sortable::after { content: " ↕"; opacity: .3; font-size: 10px; }
+    .sortable.sorted-desc::after { content: " ↓"; opacity: 1; color: var(--teal); }
+
+    .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; flex: 0 0 6px; margin-right: 5px; }
+    .dot.ok { background: var(--live); }
+    .dot.warn { background: var(--warn); }
+    .dot.bad { background: var(--dead); }
+
+    .selbar {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      background: var(--ink-2); color: #e8edf7;
+      border-radius: 12px; padding: 9px 14px; margin-bottom: 10px;
+    }
+    .selbar .sel-n { font-weight: 700; color: #7ee7db; }
+    .selbar .sep { width: 1px; height: 18px; background: #34405a; }
+    .selbar button { background: #24324d; color: #d7e0ee; border: 1px solid #34405a; padding: 5px 10px; font-size: 12px; }
+    .selbar button:hover { border-color: var(--teal); color: #fff; }
+    .selbar button.danger { color: #ff9c92; }
+    .selbar .grow { flex: 1; }
+
+    tbody tr.row-risk { background: #fffaf9; }
+    tbody tr.row-risk:hover { background: #fdf3f2; }
+    tbody tr { cursor: pointer; }
+
+    /* drawer chi tiết */
+    .drawer {
+      position: fixed; top: 0; right: 0; bottom: 0; width: 392px;
+      background: var(--paper-2); border-left: 1px solid #e2dccf;
+      box-shadow: -20px 0 50px rgba(11,18,32,.16);
+      z-index: 25; display: flex; flex-direction: column;
+    }
+    .drawer-head { padding: 16px 18px; border-bottom: 1px solid #efe9dd; display: flex; gap: 11px; align-items: flex-start; position: relative; }
+    .drawer-head .page-av { width: 46px; height: 46px; flex: 0 0 46px; border-radius: 12px; font-size: 15px; }
+    .drawer-close { position: absolute; top: 12px; right: 12px; background: transparent; color: var(--muted); font-size: 15px; padding: 2px 7px; }
+    .drawer-body { padding: 16px 18px; overflow: auto; flex: 1; }
+    .drawer-sec { margin-bottom: 20px; }
+    .drawer-sec h4 { font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: #8a8376; margin-bottom: 9px; }
+    .kv { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px dashed #f1ece3; font-size: 12.5px; }
+    .kv .k { color: var(--muted); flex: 0 0 auto; }
+    .kv .v { font-weight: 650; text-align: right; min-width: 0; }
+    .drawer-foot { padding: 13px 18px; border-top: 1px solid #efe9dd; display: flex; gap: 8px; }
+    .drawer-foot button { flex: 1; }
+    .tl { font-size: 12px; color: #3d475c; padding: 7px 0 7px 15px; border-left: 2px solid #efe9dd; position: relative; margin-left: 3px; }
+    .tl::before { content: ""; position: absolute; left: -4px; top: 12px; width: 6px; height: 6px; border-radius: 50%; background: var(--teal); }
+    .tl small { display: block; color: var(--muted); font-size: 11px; margin-top: 1px; }
+    .quick-c { display: flex; gap: 6px; flex-wrap: wrap; }
+    .quick-c button { padding: 5px 9px; font-size: 12px; background: #fff; border: 1px solid #e6e0d4; }
+    .quick-c button:hover { border-color: var(--teal); }
+    .quick-c button.on { background: var(--ink-2); color: #7ee7db; border-color: var(--ink-2); }
+
+    .mock-note { background: #14323a; color: #9ff3e8; font-size: 12px; padding: 7px 26px; letter-spacing: .3px; }
+    .mock-note b { color: #fff; }
+    #workspace.with-drawer { padding-right: 392px; }
+  </style>
+</head>
+<body>
+  <aside id="sidebar">
+    <div class="brand">
+      <div class="logo">FB</div>
+      <div>
+        <div class="brand-name">FB Manager</div>
+        <div class="brand-sub">v0.1.1 · cookie desk</div>
+      </div>
+    </div>
+    <nav>
+      <button class="nav-item"><span class="nav-ico">◎</span> Tài khoản</button>
+      <button class="nav-item active"><span class="nav-ico">▭</span> Page</button>
+      <button class="nav-item"><span class="nav-ico">⚙</span> Cài đặt</button>
+    </nav>
+    <div class="side-stats">
+      128 Page · 3 nick có cookie<br />74 đang chặn · 5 mất quyền
+    </div>
+    <div class="side-foot">Chrome profile riêng từng nick<br />cookie copy 3 format</div>
+  </aside>
+
+  <section id="workspace" class="with-drawer">
+    <div class="mock-note">MOCKUP v3 · <b>Phương án B — Bảng nâng cấp + Drawer chi tiết</b> (click dòng để mở drawer bên phải)</div>
+
+    <header class="topbar">
+      <div>
+        <h1>Page</h1>
+        <p class="page-desc">Quét Page từ nick có cookie · follower, vai trò, trạng thái xuất bản, hạn chế quốc gia.</p>
+      </div>
+      <div class="top-actions">
+        <div class="view-toggle">
+          <button>▦ Lưới</button>
+          <button class="active">☰ Bảng</button>
+        </div>
+        <input type="search" placeholder="Tìm tên page, ID, danh mục…" />
+        <select title="Lọc theo user sở hữu">
+          <option>Tất cả user (3)</option>
+          <option>10001 · Nguyễn A</option>
+          <option>10002 · Trần B</option>
+        </select>
+        <button class="ghost">↻ Quét Page</button>
+        <button class="ghost">Xuất CSV</button>
+      </div>
+    </header>
+
+    <main class="view" style="display:flex;flex-direction:column;overflow:hidden">
+      <div class="kpi kpi-6">
+        <div class="card"><div class="k">Tổng Page</div><div class="v">128</div><div class="delta flat">3 nick</div></div>
+        <div class="card"><div class="k">Follower</div><div class="v">2.4M</div><div class="delta up">▲ 12.3K/7d</div></div>
+        <div class="card"><div class="k">Đang chặn</div><div class="v">74</div><div class="delta flat">58%</div></div>
+        <div class="card"><div class="k">Whitelist</div><div class="v">12</div><div class="delta flat">9%</div></div>
+        <div class="card alert"><div class="k">Mất quyền</div><div class="v">5</div><div class="delta down">cookie lỗi</div></div>
+        <div class="card"><div class="k">Đã chọn</div><div class="v">3</div><div class="delta flat">2 owner</div></div>
+      </div>
+
+      <div class="selbar">
+        <span class="sel-n">3 Page đã chọn</span>
+        <span class="sep"></span>
+        <button>🌐 Đổi quốc gia</button>
+        <button>⏸ Ẩn page</button>
+        <button>📋 Copy ID</button>
+        <button>↗ Mở tất cả</button>
+        <span class="grow"></span>
+        <button class="danger">Gỡ khỏi danh sách</button>
+        <button>✕ Bỏ chọn</button>
+      </div>
+
+      <div class="filter-bar">
+        <div class="filter-group">
+          <span class="filter-label">Chặn</span>
+          <button class="chip active">Tất cả</button>
+          <button class="chip">Chặn CA</button>
+          <button class="chip">Chặn VN</button>
+          <button class="chip">Không chặn</button>
+          <button class="chip">Whitelist</button>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">Vai trò</span>
+          <button class="chip active">Tất cả</button>
+          <button class="chip">Admin</button>
+          <button class="chip">Editor</button>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">Trạng thái</span>
+          <button class="chip active">Tất cả</button>
+          <button class="chip">Đã XB</button>
+          <button class="chip">Bị hạn chế</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <table>
+          <thead>
+            <tr>
+              <th class="chk"><input type="checkbox" checked /></th>
+              <th>Page</th>
+              <th class="sortable sorted-desc" style="text-align:right">Follower</th>
+              <th>Vai trò</th>
+              <th>Trạng thái</th>
+              <th>Danh mục</th>
+              <th>Quản lý bởi</th>
+              <th>Hạn chế quốc gia</th>
+              <th style="text-align:right">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="picked">
+              <td class="chk"><input type="checkbox" checked /></td>
+              <td>
+                <div class="page-cell">
+                  <div class="page-av">GD</div>
+                  <div>
+                    <div class="page-name">Góc Deal Hot</div>
+                    <div class="page-sub">facebook.com/gocdealhot</div>
+                  </div>
+                </div>
+              </td>
+              <td class="col-num">
+                <span class="spark down"><i style="height:14px"></i><i style="height:12px"></i><i style="height:13px"></i><i style="height:9px"></i><i style="height:7px"></i><i style="height:5px"></i></span>
+                1.2M <span class="trend down">▼8.3%</span>
+              </td>
+              <td><span class="badge mod">MOD</span></td>
+              <td><span class="badge restricted">HẠN CHẾ</span></td>
+              <td>Retail</td>
+              <td class="owner"><span class="dot bad"></span>10003 · Lê C<small>Cookie lỗi</small></td>
+              <td>
+                <span class="tag block">Chặn</span>
+                <span class="country"><span>CA</span><span>US</span><span>+5</span></span>
+              </td>
+              <td class="actions"><button class="mini">⋯</button></td>
+            </tr>
+
+            <tr class="ctx-target">
+              <td class="chk"><input type="checkbox" /></td>
+              <td>
+                <div class="page-cell">
+                  <div class="page-av">TN</div>
+                  <div>
+                    <div class="page-name">Tech News Vietnam</div>
+                    <div class="page-sub">facebook.com/technewsvn</div>
+                  </div>
+                </div>
+              </td>
+              <td class="col-num">
+                <span class="spark up"><i style="height:6px"></i><i style="height:8px"></i><i style="height:9px"></i><i style="height:11px"></i><i style="height:13px"></i><i style="height:15px"></i></span>
+                412K <span class="trend up">▲2.1%</span>
+              </td>
+              <td><span class="badge admin">ADMIN</span></td>
+              <td><span class="badge pub">ĐÃ XB</span></td>
+              <td>Media</td>
+              <td class="owner"><span class="dot ok"></span>10001 · Nguyễn A<small>Cookie hợp lệ</small></td>
+              <td>
+                <span class="tag block">Chặn</span>
+                <span class="country"><span>CA</span><span>US</span></span>
+              </td>
+              <td class="actions"><button class="mini">⋯</button></td>
+            </tr>
+
+            <tr class="picked">
+              <td class="chk"><input type="checkbox" checked /></td>
+              <td>
+                <div class="page-cell">
+                  <div class="page-av">FR</div>
+                  <div>
+                    <div class="page-name">Food Review SG</div>
+                    <div class="page-sub">facebook.com/foodreviewsg</div>
+                  </div>
+                </div>
+              </td>
+              <td class="col-num">
+                <span class="spark up"><i style="height:9px"></i><i style="height:10px"></i><i style="height:10px"></i><i style="height:12px"></i><i style="height:12px"></i><i style="height:14px"></i></span>
+                204K <span class="trend up">▲1.2%</span>
+              </td>
+              <td><span class="badge admin">ADMIN</span></td>
+              <td><span class="badge pub">ĐÃ XB</span></td>
+              <td>Food</td>
+              <td class="owner"><span class="dot ok"></span>10001 · Nguyễn A<small>Cookie hợp lệ</small></td>
+              <td>
+                <span class="tag block">Chặn</span>
+                <span class="country"><span>CA</span></span>
+              </td>
+              <td class="actions"><button class="mini">⋯</button></td>
+            </tr>
+
+            <tr class="picked">
+              <td class="chk"><input type="checkbox" checked /></td>
+              <td>
+                <div class="page-cell">
+                  <div class="page-av">SO</div>
+                  <div>
+                    <div class="page-name">Shop Online</div>
+                    <div class="page-sub">facebook.com/shoponline</div>
+                  </div>
+                </div>
+              </td>
+              <td class="col-num">
+                <span class="spark down"><i style="height:13px"></i><i style="height:12px"></i><i style="height:12px"></i><i style="height:11px"></i><i style="height:11px"></i><i style="height:10px"></i></span>
+                88.2K <span class="trend down">▼0.4%</span>
+              </td>
+              <td><span class="badge admin">ADMIN</span></td>
+              <td><span class="badge pub">ĐÃ XB</span></td>
+              <td>Shopping</td>
+              <td class="owner"><span class="dot ok"></span>10002 · Trần B<small>Cookie hợp lệ</small></td>
+              <td>
+                <span class="tag allow">Whitelist</span>
+                <span class="country"><span>VN</span></span>
+              </td>
+              <td class="actions"><button class="mini">⋯</button></td>
+            </tr>
+
+            <tr>
+              <td class="chk"><input type="checkbox" /></td>
+              <td>
+                <div class="page-cell">
+                  <div class="page-av">LC</div>
+                  <div>
+                    <div class="page-name">Cộng đồng địa phương</div>
+                    <div class="page-sub">facebook.com/localcommunity</div>
+                  </div>
+                </div>
+              </td>
+              <td class="col-num">
+                <span class="spark up"><i style="height:5px"></i><i style="height:7px"></i><i style="height:8px"></i><i style="height:10px"></i><i style="height:13px"></i><i style="height:16px"></i></span>
+                15.7K <span class="trend up">▲5.8%</span>
+              </td>
+              <td><span class="badge editor">EDITOR</span></td>
+              <td><span class="badge pub">ĐÃ XB</span></td>
+              <td>Community</td>
+              <td class="owner"><span class="dot ok"></span>10001 · Nguyễn A<small>Cookie hợp lệ</small></td>
+              <td><span class="tag none">Không chặn</span></td>
+              <td class="actions"><button class="mini">⋯</button></td>
+            </tr>
+
+            <tr class="row-risk">
+              <td class="chk"><input type="checkbox" /></td>
+              <td>
+                <div class="page-cell">
+                  <div class="page-av">MV</div>
+                  <div>
+                    <div class="page-name">Music Vibes</div>
+                    <div class="page-sub">facebook.com/musicvibes</div>
+                  </div>
+                </div>
+              </td>
+              <td class="col-num">
+                <span class="spark"><i style="height:8px"></i><i style="height:8px"></i><i style="height:8px"></i><i style="height:8px"></i><i style="height:8px"></i><i style="height:8px"></i></span>
+                3.4K <span class="trend flat">—</span>
+              </td>
+              <td><span class="badge admin">ADMIN</span></td>
+              <td><span class="badge unpub">CHƯA XB</span></td>
+              <td>Music</td>
+              <td class="owner"><span class="dot warn"></span>10002 · Trần B<small>Cookie cũ 3 ngày</small></td>
+              <td><span class="tag none">Không chặn</span></td>
+              <td class="actions"><button class="mini">⋯</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="log-panel">
+        <div class="log-head"><span>Nhật ký</span><button class="text">Xóa log</button></div>
+        <pre id="logBox">12:31  Quét Page xong: 128 page từ 3 nick (5 page mất quyền)
+12:32  Đổi quốc gia 3 page · nhóm 2 owner
+12:32  ✓ Tech News Vietnam — chặn CA, US
+12:32  ✓ Shop Online — chỉ cho phép VN
+12:33  ⚠ Góc Deal Hot — owner 10003 cookie lỗi, bỏ qua</pre>
+      </div>
+    </main>
+
+    <footer id="logbar">
+      <span>Sẵn sàng. Đã chọn 3 Page · tổng 1.5M follower.</span>
+      <button class="text">Đóng mọi Chrome</button>
+    </footer>
+  </section>
+
+  <!-- ===== DRAWER CHI TIẾT PAGE ===== -->
+  <aside class="drawer">
+    <div class="drawer-head">
+      <div class="page-av">TN</div>
+      <div style="min-width:0">
+        <div class="page-name" style="font-size:15px">Tech News Vietnam</div>
+        <div class="page-sub">facebook.com/technewsvn</div>
+        <div style="display:flex;gap:5px;margin-top:6px">
+          <span class="badge admin">ADMIN</span>
+          <span class="badge pub">ĐÃ XB</span>
+        </div>
+      </div>
+      <button class="drawer-close">✕</button>
+    </div>
+
+    <div class="drawer-body">
+      <div class="drawer-sec">
+        <h4>Chỉ số</h4>
+        <div class="kv"><span class="k">Follower</span><span class="v">412,338 <span class="trend up">▲2.1%</span></span></div>
+        <div class="kv"><span class="k">Lượt thích</span><span class="v">389,201</span></div>
+        <div class="kv"><span class="k">Bài 30 ngày</span><span class="v">47</span></div>
+        <div class="kv"><span class="k">Tương tác TB</span><span class="v">1,284 / bài</span></div>
+      </div>
+
+      <div class="drawer-sec">
+        <h4>Thông tin</h4>
+        <div class="kv"><span class="k">Page ID</span><span class="v" style="font-family:ui-monospace,Consolas,monospace;font-size:11.5px">123456789</span></div>
+        <div class="kv"><span class="k">Danh mục</span><span class="v">Media / News</span></div>
+        <div class="kv"><span class="k">Tạo lúc</span><span class="v">12/03/2019</span></div>
+        <div class="kv"><span class="k">Quản lý bởi</span><span class="v"><span class="dot ok"></span>10001 · Nguyễn A</span></div>
+        <div class="kv"><span class="k">Quét lần cuối</span><span class="v">20/09 12:31</span></div>
+      </div>
+
+      <div class="drawer-sec">
+        <h4>Hạn chế quốc gia</h4>
+        <div style="margin-bottom:9px">
+          <span class="tag block">Chặn (blocklist)</span>
+          <span class="country" style="margin-left:5px"><span>CA</span><span>US</span></span>
+        </div>
+        <div class="quick-c">
+          <button class="on">Chặn CA</button>
+          <button>Chặn VN</button>
+          <button>CA + US</button>
+          <button>Chỉ VN</button>
+          <button>Gỡ hết</button>
+          <button>Tùy chỉnh…</button>
+        </div>
+      </div>
+
+      <div class="drawer-sec">
+        <h4>Lịch sử thao tác</h4>
+        <div class="tl">Chặn CA, US<small>20/09 12:32 · qua 10001</small></div>
+        <div class="tl">Gỡ hết chặn<small>18/09 09:14 · qua 10001</small></div>
+        <div class="tl">Quét lần đầu<small>15/09 22:02</small></div>
+      </div>
+    </div>
+
+    <div class="drawer-foot">
+      <button class="ghost">↗ Mở Page</button>
+      <button class="ghost">📋 Copy ID</button>
+      <button class="primary">🌐 Đổi quốc gia</button>
+    </div>
+  </aside>
+</body>
+</html>

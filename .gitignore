@@ -1,0 +1,8 @@
+node_modules/
+dist/
+vendor/
+_ref_fb-tool/
+data/
+*.log
+.DS_Store
+Thumbs.db

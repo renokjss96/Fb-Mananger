@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <title>FB Manager — Mockup Page v4</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    /* ============================================================
+       MOCKUP v4 — bám đúng style hiện tại của app.
+       Chỉ THÊM class mới, không đụng class cũ.
+       Khi code thật: copy nguyên khối <style> này vào styles.css.
+       ============================================================ */
+
+    /* --- KPI: thêm dòng phụ nhỏ dưới số, giữ nguyên .kpi .card --- */
+    .kpi .sub { font-size: 11px; color: var(--muted); margin-top: 3px; }
+    .kpi .sub.up { color: var(--live); font-weight: 650; }
+    .kpi .sub.down { color: var(--dead); font-weight: 650; }
+    .kpi .card.alert { border-color: #f0c7c3; }
+    .kpi .card.alert .v { color: var(--dead); }
+
+    /* --- badge vai trò / trạng thái: dùng lại tinh thần .tag nhưng vuông, không chấm --- */
+    .badge {
+      display: inline-flex; align-items: center;
+      padding: 2px 8px; border-radius: 6px;
+      font-size: 11px; font-weight: 700; letter-spacing: .2px;
+    }
+    .badge.admin { background: #e8f1fb; color: var(--run); }
+    .badge.editor { background: #f3edfb; color: #7c4dbd; }
+    .badge.mod { background: #eef0f4; color: #667085; }
+    .badge.pub { background: #e8f7ee; color: var(--live); }
+    .badge.unpub { background: #fdf3e5; color: var(--warn); }
+    .badge.limited { background: #fdecea; color: var(--dead); }
+
+    /* --- cột số: canh phải, font mono như .uid --- */
+    .col-num { text-align: right; font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; white-space: nowrap; }
+    .trend { font-size: 11px; font-weight: 700; margin-left: 4px; }
+    .trend.up { color: var(--live); }
+    .trend.down { color: var(--dead); }
+    .trend.flat { color: var(--muted); }
+
+    /* --- dot sức khỏe cookie của owner --- */
+    .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin-right: 5px; flex: 0 0 6px; }
+    .dot.ok { background: var(--live); }
+    .dot.warn { background: var(--warn); }
+    .dot.bad { background: var(--dead); }
+
+    /* --- thanh hành động hàng loạt: chỉ hiện khi đã chọn --- */
+    .selbar {
+      display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
+      background: var(--ink-2); color: #e8edf7;
+      border-radius: 12px; padding: 9px 14px; margin-bottom: 10px;
+    }
+    .selbar .sel-n { font-weight: 700; color: #7ee7db; font-size: 13px; }
+    .selbar .sep { width: 1px; height: 17px; background: #34405a; }
+    .selbar button {
+      background: #24324d; color: #d7e0ee;
+      border: 1px solid #34405a; padding: 5px 10px; font-size: 12px;
+    }
+    .selbar button:hover { border-color: var(--teal); color: #fff; }
+    .selbar button.danger { color: #ff9c92; }
+    .selbar .grow { flex: 1; }
+
+    /* --- dòng cảnh báo owner mất cookie --- */
+    tbody tr.row-risk td { background: #fffaf9; }
+    tbody tr.row-risk:hover td { background: #fdf3f2; }
+
+    .mock-note { background: #14323a; color: #9ff3e8; font-size: 12px; padding: 7px 26px; }
+    .mock-note b { color: #fff; }
+  </style>
+</head>
+<body>
+  <aside id="sidebar">
+    <div class="brand">
+      <div class="logo">FB</div>
+      <div>
+        <div class="brand-name">FB Manager</div>
+        <div class="brand-sub">v0.1.1 · cookie desk</div>
+      </div>
+    </div>
+
+    <nav>
+      <button class="nav-item"><span class="nav-ico">◎</span> Tài khoản</button>
+      <button class="nav-item active"><span class="nav-ico">▭</span> Page</button>
+      <button class="nav-item"><span class="nav-ico">⚙</span> Cài đặt</button>
+    </nav>
+
+    <div class="side-stats">
+      12 Page trong kho<br />
+      4 nick có cookie<br />
+      2 Page mất quyền
+    </div>
+
+    <div class="side-foot">
+      Chrome profile riêng từng nick<br />cookie copy 3 format
+    </div>
+  </aside>
+
+  <section id="workspace">
+    <div class="mock-note">MOCKUP v4 · <b>đúng style app hiện tại</b> — chỉ thêm cột Follower / Vai trò / Trạng thái + thanh chọn hàng loạt</div>
+
+    <header class="topbar">
+      <div>
+        <h1>Page</h1>
+        <p class="page-desc">Quét Page từ nick có cookie,<br />đổi hạn chế quốc gia.</p>
+      </div>
+      <div class="top-actions">
+        <input type="search" placeholder="Tìm tên page, ID, danh mục…" />
+        <select title="Lọc theo user sở hữu">
+          <option>Tất cả user</option>
+          <option>100058089476414</option>
+          <option>100003171058978</option>
+        </select>
+        <button class="ghost">↻ Quét Page</button>
+        <button class="ghost">Xuất CSV</button>
+        <button class="primary">Đổi quốc gia</button>
+        <button class="ghost danger-btn">Gỡ page</button>
+      </div>
+    </header>
+
+    <main class="view" style="display:flex;flex-direction:column;overflow:hidden">
+      <div class="kpi">
+        <div class="card">
+          <div class="k">Tổng Page</div>
+          <div class="v">12</div>
+          <div class="sub">từ 4 nick</div>
+        </div>
+        <div class="card">
+          <div class="k">Đang chặn</div>
+          <div class="v">7</div>
+          <div class="sub">58%</div>
+        </div>
+        <div class="card alert">
+          <div class="k">Mất quyền</div>
+          <div class="v">2</div>
+          <div class="sub down">cookie lỗi</div>
+        </div>
+        <div class="card">
+          <div class="k">Đã chọn</div>
+          <div class="v">3</div>
+          <div class="sub">2 owner</div>
+        </div>
+      </div>
+
+      <div class="selbar">
+        <span class="sel-n">3 Page đã chọn</span>
+        <span class="sep"></span>
+        <button>Đổi quốc gia</button>
+        <button>Copy Page ID</button>
+        <button>Mở tất cả</button>
+        <span class="grow"></span>
+        <button class="danger">Gỡ khỏi danh sách</button>
+        <button>Bỏ chọn</button>
+      </div>
+
+      <div class="filter-bar">
+        <div class="filter-group">
+          <span class="filter-label">Chặn</span>
+          <button class="chip active">Tất cả</button>
+          <button class="chip">Chặn CA</button>
+          <button class="chip">Chặn VN</button>
+          <button class="chip">Không chặn</button>
+          <button class="chip">Whitelist</button>
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">Vai trò</span>
+          <button class="chip active">Tất cả</button>
+          <button class="chip">Admin</button>
+          <button class="chip">Editor</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <table>
+          <thead>
+            <tr>
+              <th class="chk"><input type="checkbox" /></th>
+              <th>Page</th>
+              <th>ID</th>
+              <th style="text-align:right">Follower</th>
+              <th>Vai trò</th>
+              <th>Trạng thái</th>
+              <th>Danh mục</th>
+              <th>Quản lý bởi</th>
+              <th>Hạn chế quốc gia</th>
+              <th style="text-align:right">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="picked">
+              <td class="chk"><input type="checkbox" checked /></td>
+              <td>
+                <div class="page-cell">
+                  <div class="page-av">TN</div>
+                  <div>
+                    <div class="page-name">Tech News Vietnam</div>
+                    <div class="page-sub">facebook.com/technewsvn</div>
+                  </div>
+                </div>
+              </td>
+              <td class="uid">123456789</td>
+              <td class="col-num">412K <span class="trend up">▲2.1%</span></td>
+              <td><span class="badge admin">ADMIN</span></td>
+              <td><span class="badge pub">ĐÃ XB</span></td>
+              <td>Media</td>
+              <td class="owner"><span class="dot ok"></span>100058089476414<small>Cookie hợp lệ</small></td>
+              <td>
+                <span class="tag block">Chặn</span>
+                <span class="country"><span>CA</span><span>US</span></span>
+              </td>
+              <td class="actions"><button class="mini">⋯ Đổi quốc gia</button></td>
+            </tr>
+
+            <tr class="picked">
+              <td class="chk"><input type="checkbox" checked /></td>
+              <td>
+                <div class="page-cell">
+                  <div class="page-av">SO</div>
+                  <div>
+                    <div class="page-name">Shop Online</div>
+                    <div class="page-sub">facebook.com/shoponline</div>
+                  </div>
+                </div>
+              </td>
+              <td class="uid">234567890</td>
+              <td class="col-num">88.2K <span class="trend down">▼0.4%</span></td>
+              <td><span class="badge admin">ADMIN</span></td>
+              <td><span class="badge pub">ĐÃ XB</span></td>
+              <td>Shopping</td>
+              <td class="owner"><span class="dot ok"></span>100003171058978<small>Cookie hợp lệ</small></td>
+              <td>
+                <span class="tag allow">Whitelist</span>
+                <span class="country"><span>VN</span></span>
+              </td>
+              <td class="actions"><button class="mini">⋯ Đổi quốc gia</button></td>
+            </tr>
+
+            <tr class="picked">
+              <td class="chk"><input type="checkbox" checked /></td>
+              <td>
+                <div class="page-cell">
+                  <div class="page-av">FR</div>
+                  <div>
+                    <div class="page-name">Food Review SG</div>
+                    <div class="page-sub">facebook.com/foodreviewsg</div>
+                  </div>
+                </div>
+              </td>
+              <td class="uid">345678901</td>
+              <td class="col-num">204K <span class="trend up">▲1.2%</span></td>
+              <td><span class="badge admin">ADMIN</span></td>
+              <td><span class="badge pub">ĐÃ XB</span></td>
+              <td>Food</td>
+              <td class="owner"><span class="dot ok"></span>100058089476414<small>Cookie hợp lệ</small></td>
+              <td>
+                <span class="tag block">Chặn</span>
+                <span class="country"><span>CA</span></span>
+              </td>
+              <td class="actions"><button class="mini">⋯ Đổi quốc gia</button></td>
+            </tr>
+
+            <tr>
+              <td class="chk"><input type="checkbox" /></td>
+              <td>
+                <div class="page-cell">
+                  <div class="page-av">LC</div>
+                  <div>
+                    <div class="page-name">Cộng đồng địa phương</div>
+                    <div class="page-sub">facebook.com/localcommunity</div>
+                  </div>
+                </div>
+              </td>
+              <td class="uid">456789012</td>
+              <td class="col-num">15.7K <span class="trend up">▲5.8%</span></td>
+              <td><span class="badge editor">EDITOR</span></td>
+              <td><span class="badge pub">ĐÃ XB</span></td>
+              <td>Community</td>
+              <td class="owner"><span class="dot ok"></span>100058089476414<small>Cookie hợp lệ</small></td>
+              <td><span class="tag none">Không chặn</span></td>
+              <td class="actions"><button class="mini">⋯ Đổi quốc gia</button></td>
+            </tr>
+
+            <tr class="row-risk">
+              <td class="chk"><input type="checkbox" /></td>
+              <td>
+                <div class="page-cell">
+                  <div class="page-av">GD</div>
+                  <div>
+                    <div class="page-name">Góc Deal Hot</div>
+                    <div class="page-sub">facebook.com/gocdealhot</div>
+                  </div>
+                </div>
+              </td>
+              <td class="uid">567890123</td>
+              <td class="col-num">1.2M <span class="trend down">▼8.3%</span></td>
+              <td><span class="badge mod">MOD</span></td>
+              <td><span class="badge limited">HẠN CHẾ</span></td>
+              <td>Retail</td>
+              <td class="owner"><span class="dot bad"></span>100089243412994<small>CP 282 — không đổi được</small></td>
+              <td>
+                <span class="tag block">Chặn</span>
+                <span class="country"><span>CA</span><span>US</span><span>+5</span></span>
+              </td>
+              <td class="actions"><button class="mini" disabled>⋯ Đổi quốc gia</button></td>
+            </tr>
+
+            <tr class="row-risk">
+              <td class="chk"><input type="checkbox" /></td>
+              <td>
+                <div class="page-cell">
+                  <div class="page-av">MV</div>
+                  <div>
+                    <div class="page-name">Music Vibes</div>
+                    <div class="page-sub">facebook.com/musicvibes</div>
+                  </div>
+                </div>
+              </td>
+              <td class="uid">678901234</td>
+              <td class="col-num">3.4K <span class="trend flat">—</span></td>
+              <td><span class="badge admin">ADMIN</span></td>
+              <td><span class="badge unpub">CHƯA XB</span></td>
+              <td>Music</td>
+              <td class="owner"><span class="dot warn"></span>100095437232993<small>Cookie cũ 3 ngày</small></td>
+              <td><span class="tag none">Không chặn</span></td>
+              <td class="actions"><button class="mini">⋯ Đổi quốc gia</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="log-panel">
+        <div class="log-head"><span>Nhật ký</span><button class="text">Xóa log</button></div>
+        <pre id="logBox">22:54:10  Quét Page: 4 nick có cookie…
+22:54:18  ✓ 100058089476414 — 6 page
+22:54:25  ✓ 100003171058978 — 4 page
+22:54:31  ⚠ 100089243412994 — CP 282, bỏ qua
+22:54:33  Quét xong: 12 page (2 mất quyền)</pre>
+      </div>
+    </main>
+
+    <footer id="logbar">
+      <span>Sẵn sàng. Đã chọn 3 Page.</span>
+      <button class="text">Đóng mọi Chrome</button>
+    </footer>
+  </section>
+</body>
+</html>

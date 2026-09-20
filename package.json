@@ -1,0 +1,52 @@
+{
+  "name": "fb-manager",
+  "version": "0.1.1",
+  "description": "Quản lý nhiều nick Facebook: login Chrome lấy cookie, copy 3 format.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "fetch:chrome": "node scripts/fetch-chrome.js",
+    "dist": "npm run fetch:chrome && electron-builder --win",
+    "dist:fast": "electron-builder --win"
+  },
+  "dependencies": {
+    "selenium-webdriver": "^4.27.0"
+  },
+  "devDependencies": {
+    "electron": "33.4.11",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.fbmanager.nicks",
+    "productName": "FB Manager",
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "renderer/**/*",
+      "agent/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      { "from": "vendor/chrome-win64", "to": "chrome" },
+      { "from": "vendor/chromedriver", "to": "chromedriver" }
+    ],
+    "asarUnpack": [
+      "**/node_modules/selenium-webdriver/**"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}

@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' file: data:; style-src 'self' 'unsafe-inline' file:; script-src 'self' 'unsafe-inline' file:; connect-src 'self' file:" />
+  <title>FB Manager</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <aside id="sidebar">
+    <div class="brand">
+      <div class="logo">FB</div>
+      <div>
+        <div class="brand-name">FB Manager</div>
+        <div class="brand-sub">v0.1.1 · cookie desk</div>
+      </div>
+    </div>
+
+    <nav>
+      <button class="nav-item active" data-view="accounts">
+        <span class="nav-ico">◎</span> Tài khoản
+      </button>
+      <button class="nav-item" data-view="pages">
+        <span class="nav-ico">▭</span> Page
+      </button>
+      <button class="nav-item" data-view="settings">
+        <span class="nav-ico">⚙</span> Cài đặt
+      </button>
+    </nav>
+
+    <div class="side-stats" id="sideStats"></div>
+
+    <div class="side-foot">
+      Chrome profile riêng từng nick<br />cookie copy 3 format
+    </div>
+  </aside>
+
+  <section id="workspace">
+    <header class="topbar">
+      <div>
+        <h1 id="pageTitle">Tài khoản</h1>
+        <p class="page-desc" id="pageDesc">Login Chrome lấy cookie, copy cookie.</p>
+      </div>
+      <div class="top-actions" id="topActionsAccounts">
+        <input id="search" type="search" placeholder="Tìm UID, email, ghi chú…" />
+        <button class="ghost" id="btnImport">Import</button>
+        <button class="ghost" id="btnExportCookies">Xuất cookie</button>
+        <button class="ghost" id="btnPushPoster" title="Đẩy cookie đã chọn sang FB Desktop Poster">Đẩy sang Poster</button>
+        <button class="ghost danger-btn" id="btnDeleteSelected">Xóa nick</button>
+        <button class="ghost" id="btnOpenBrowser" title="Chỉ mở Chrome, không tự đăng nhập">Mở trình duyệt</button>
+        <button class="primary" id="btnLoginPass" title="Xóa cookie trình duyệt rồi login UID/Pass, tự tắt Chrome">Login UID/Pass</button>
+        <button class="primary" id="btnLoginPassKeep" title="Xóa cookie trình duyệt rồi login UID/Pass, giữ Chrome mở">Login + Giữ Chrome</button>
+        <button class="primary" id="btnLoginCookie" title="Chỉ dùng cookie, không gõ UID/Pass">Login Cookie</button>
+        <button class="ghost" id="btnAdd">+ Nick trống</button>
+      </div>
+      <div class="top-actions hidden" id="topActionsPages">
+        <input id="searchPages" type="search" placeholder="Tìm tên page, ID, danh mục…" />
+        <select id="pagesUserFilter" title="Lọc theo user sở hữu"></select>
+        <button class="ghost" id="btnPagesScan">↻ Quét Page</button>
+        <button class="ghost" id="btnPagesExport">Xuất CSV</button>
+        <button class="primary" id="btnPagesBulk">Đổi quốc gia</button>
+        <button class="ghost danger-btn" id="btnPagesRemove">Gỡ page</button>
+      </div>
+    </header>
+
+    <main id="viewAccounts" class="view">
+      <div class="kpi" id="kpi"></div>
+      <div class="panel">
+        <table>
+          <thead>
+            <tr>
+              <th class="chk"><input type="checkbox" id="chkAll" /></th>
+              <th>UID</th>
+              <th>Pass</th>
+              <th>2FA</th>
+              <th>Cookie</th>
+              <th>Email</th>
+              <th>Pass mail</th>
+              <th>Trạng thái</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+        <div id="empty" class="empty hidden">
+          <div class="empty-mark">◎</div>
+          <h2>Chưa có nick</h2>
+          <p>Import nick theo format (mặc định <code>uid|pass|2FA|cookie|email|passmail</code>) — dữ liệu tự fill đúng cột. Hoặc login Chrome để bắt cookie.</p>
+          <button class="ghost" id="btnEmptyImport">Import</button>
+          <button class="primary" id="btnEmptyAdd">+ Nick trống</button>
+        </div>
+      </div>
+      <div class="log-panel">
+        <div class="log-head">
+          <span>Nhật ký</span>
+          <button class="text" id="btnClearLogs">Xóa log</button>
+        </div>
+        <pre id="logBox"></pre>
+      </div>
+    </main>
+
+    <main id="viewPages" class="view hidden">
+      <div class="kpi" id="kpiPages"></div>
+      <div class="filter-bar" id="pagesFilterBar">
+        <div class="filter-group">
+          <span class="filter-label">Chặn</span>
+          <button class="chip active" data-block="all">Tất cả</button>
+          <button class="chip" data-block="block-CA">Chặn CA</button>
+          <button class="chip" data-block="block-VN">Chặn VN</button>
+          <button class="chip" data-block="none">Không chặn</button>
+          <button class="chip" data-block="allow">Whitelist</button>
+        </div>
+        <span class="hint" id="pagesHint"></span>
+      </div>
+      <div class="panel">
+        <table>
+          <thead>
+            <tr>
+              <th class="chk"><input type="checkbox" id="chkPagesAll" /></th>
+              <th>Page</th>
+              <th>ID</th>
+              <th style="text-align:right">Follower</th>
+              <th>XB</th>
+              <th>Danh mục</th>
+              <th>Quản lý bởi</th>
+              <th>Hạn chế quốc gia</th>
+              <th style="text-align:right">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody id="tbodyPages"></tbody>
+        </table>
+        <div id="emptyPages" class="empty hidden">
+          <div class="empty-mark">▭</div>
+          <h2>Chưa có Page</h2>
+          <p>Bấm <b>Quét Page</b> để lấy danh sách Page từ nick có cookie.<br />Sau đó chọn page và bấm <b>Đổi quốc gia</b>.</p>
+          <button class="ghost" id="btnEmptyPagesScan">Quét Page</button>
+        </div>
+      </div>
+      <div class="log-panel">
+        <div class="log-head">
+          <span>Nhật ký</span>
+          <button class="text" id="btnClearLogs2">Xóa log</button>
+        </div>
+        <pre id="logBoxPages"></pre>
+      </div>
+    </main>
+
+    <main id="viewSettings" class="view hidden">
+      <div class="settings-card">
+        <label>Engine trình duyệt</label>
+        <div class="row">
+          <label class="radio" style="flex:1"><input type="radio" name="chromeEngine" value="bundled" /> Chrome của tool (khuyên dùng) — kèm sẵn trong app, không phụ thuộc máy</label>
+          <label class="radio" style="flex:1"><input type="radio" name="chromeEngine" value="system" /> Chrome của máy — dùng chrome.exe đã cài</label>
+        </div>
+        <p class="hint" id="chromeEngineHint">Bundled: mở nhanh, không lệch driver. System: dùng Chrome/Edge đã cài, cần version khớp chromedriver.</p>
+        <label>Đường dẫn Chrome / Edge (chỉ khi chọn Chrome của máy)</label>
+        <div class="row">
+          <input id="setChromePath" type="text" placeholder="C:\Program Files\Google\Chrome\Application\chrome.exe" />
+          <button class="ghost" id="btnDetectChrome">Dò tìm</button>
+        </div>
+        <label>Delay giữa các nick khi check loạt (ms)</label>
+        <input id="setDelay" type="number" min="0" step="100" />
+        <label>Số luồng Chrome cùng lúc</label>
+        <input id="setThreads" type="number" min="1" max="20" step="1" />
+        <p class="hint">Login nhiều nick: mở tối đa N cửa sổ Chrome song song, nick còn lại xếp hàng.</p>
+        <label class="check-line">
+          <input type="checkbox" id="setHideBrowser" />
+          Chạy ẩn trình duyệt (headless)
+        </label>
+        <p class="hint">Ẩn thì không thấy cửa sổ Chrome. 2FA secret (TOTP) vẫn tự điền nếu Facebook hỏi mã.</p>
+        <label>Format import (mỗi field cách bởi <code>|</code>)</label>
+        <input id="setImportFormat" type="text" placeholder="uid|pass|2fa|cookie|email|passmail" />
+        <p class="hint">Chỉ dùng lúc Import để map cột. Bảng luôn hiện UID, Pass, 2FA, Cookie, Email, Pass mail. Field: uid, pass, 2fa, cookie, email, passmail. Dùng <code>_</code> để bỏ cột nguồn.</p>
+        <div class="settings-card" style="margin-top:14px;">
+          <label class="check-line" style="margin-top:0;">
+            <input type="checkbox" id="setAgentEnabled" />
+            Bật Agent MCP (điều khiển từ tool khác)
+          </label>
+          <p class="hint">Khi tắt, mọi gọi MCP / đẩy Poster qua MCP bị từ chối. Bridge file sẽ bị xóa.</p>
+          <div class="row">
+            <input id="setAgentBridge" type="text" readonly placeholder="Agent chưa chạy" />
+            <button class="ghost" id="btnCopyMcp">Copy cấu hình MCP</button>
+          </div>
+          <p class="hint" id="agentHint">—</p>
+          <pre id="mcpPreview" style="margin-top:8px; max-height:180px; overflow:auto; background:#0b1220; color:#cbd5e1; padding:10px; border-radius:8px; font-size:11px; white-space:pre-wrap; word-break:break-all;"></pre>
+        </div>
+        <div class="row end">
+          <button class="primary" id="btnSaveSettings">Lưu cài đặt</button>
+        </div>
+      </div>
+    </main>
+
+    <footer id="logbar">
+      <span id="logText">Sẵn sàng.</span>
+      <button class="text" id="btnCloseAll">Đóng mọi Chrome</button>
+    </footer>
+  </section>
+
+  <dialog id="dlgImport">
+    <h3>Import nick</h3>
+    <p class="hint">Mỗi nick 1 dòng, phân tách <code>|</code>. Format bên dưới chỉ để map đúng cột (UID, Pass, 2FA, Cookie, Email, Pass mail). Trùng UID thì cập nhật. Dòng <code>#</code> bị bỏ qua.</p>
+    <label>Format</label>
+    <input id="importFormat" type="text" placeholder="uid|pass|2fa|cookie|email|passmail" />
+    <textarea id="importText" rows="11" placeholder="1000123|matkhau|ABCD1234|c_user=…; xs=…|mail@gmail.com|passmail"></textarea>
+    <div class="dlg-actions">
+      <span id="importPreview"></span>
+      <span class="grow"></span>
+      <button class="ghost" id="btnImportCancel">Hủy</button>
+      <button class="primary" id="btnImportDo">Import</button>
+    </div>
+  </dialog>
+
+  <dialog id="dlgExport">
+    <h3>Xuất cookie</h3>
+    <p class="hint" id="exportHint">Xuất cookie của nick đã chọn. Nếu không chọn gì thì xuất tất cả nick có cookie.</p>
+    <label>Định dạng</label>
+    <div class="row wrap">
+      <label class="radio"><input type="radio" name="exportFmt" value="header" checked /> Header</label>
+      <label class="radio"><input type="radio" name="exportFmt" value="netscape" /> Netscape</label>
+      <label class="radio"><input type="radio" name="exportFmt" value="json" /> JSON</label>
+    </div>
+    <div class="dlg-actions">
+      <span class="grow"></span>
+      <button class="ghost" id="btnExportCancel">Hủy</button>
+      <button class="primary" id="btnExportDo">Xuất file</button>
+    </div>
+  </dialog>
+
+  <dialog id="dlgEdit">
+    <h3>Sửa nick</h3>
+    <label>Alias</label>
+    <input id="editAlias" type="text" />
+    <label>Ghi chú</label>
+    <input id="editNote" type="text" />
+    <label>Mật khẩu</label>
+    <input id="editPass" type="text" />
+    <label>2FA</label>
+    <input id="editTwoFa" type="text" />
+    <label>Email</label>
+    <input id="editEmail" type="text" />
+    <label>Pass mail</label>
+    <input id="editPassmail" type="text" />
+    <div class="dlg-actions">
+      <span class="grow"></span>
+      <button class="ghost" id="btnEditCancel">Hủy</button>
+      <button class="primary" id="btnEditSave">Lưu</button>
+    </div>
+  </dialog>
+
+  <dialog id="dlgPageRestrict">
+    <h3 id="dlgRestrictTitle">Đổi hạn chế quốc gia</h3>
+    <p class="hint" id="dlgRestrictHint">Áp dụng cho page đã chọn. Gọi CountryRestrictionSettingMutation.</p>
+    <label>Chế độ</label>
+    <div style="display:flex;flex-direction:column;gap:6px;margin:6px 0 8px">
+      <label class="radio"><input type="radio" name="restrictMode" value="block" checked /> Chặn (blocklist) — is_blocklist=true</label>
+      <label class="radio"><input type="radio" name="restrictMode" value="allow" /> Chỉ cho phép (allowlist) — is_blocklist=false</label>
+      <label class="radio"><input type="radio" name="restrictMode" value="clear" /> Gỡ hết chặn — country_list=[]</label>
+    </div>
+    <label>Quốc gia (ISO2, cách nhau dấu phẩy)</label>
+    <input id="restrictCountries" type="text" placeholder="VD: CA, US, VN" value="CA" />
+    <p class="hint" style="margin-top:6px">VD: <code>CA</code> → {"country_list":["CA"],"is_blocklist":true} · rỗng = gỡ chặn</p>
+    <div class="dlg-actions">
+      <span class="grow"></span>
+      <button class="ghost" id="btnRestrictCancel">Hủy</button>
+      <button class="primary" id="btnRestrictDo">Áp dụng</button>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast hidden"></div>
+  <script>
+    window.addEventListener('error', function (e) {
+      var el = document.getElementById('logText');
+      if (el) el.textContent = 'JS lỗi: ' + (e.message || e);
+    });
+  </script>
+  <script src="app.js"></script>
+</body>
+</html>
