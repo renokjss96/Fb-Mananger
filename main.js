@@ -334,7 +334,7 @@ function registerIpc() {
       for (let i = 0; i < gpages.length; i++) {
         const p = gpages[i];
         try {
-          const r = await setCountryRestrictionWithCache(cookie, p.pageId, list, isBlock, cached);
+          const r = await setCountryRestrictionWithCache(cookie, p.pageId, list, isBlock, cached, store);
           if (r && r.freshTokens) store.setOwnerTokens(ownerId, r.freshTokens);
           store.updatePageRestriction(p.pageId, list, isBlock);
           ok++;

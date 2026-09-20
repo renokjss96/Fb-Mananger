@@ -76,7 +76,8 @@ async function getFreshAccessTokenFromCookies(cookie) {
 }
 
 async function getUserPagesViaGraph(cookie, accessToken) {
-  const fields = 'id,name,category,fan_count,followers_count,picture,is_published,access_token';
+  // fb-tool lấy thêm additional_profile_id — chính là actor_id dạng 615... cho mutation
+  const fields = 'id,name,category,fan_count,followers_count,picture,is_published,access_token,additional_profile_id';
   const url = `${GRAPH_BASE}/${GRAPH_VERSION}/me/accounts?fields=${encodeURIComponent(fields)}&limit=100&access_token=${encodeURIComponent(accessToken)}`;
   const res = await fetch(url, {
     headers: {
@@ -92,6 +93,7 @@ async function getUserPagesViaGraph(cookie, accessToken) {
   const data = Array.isArray(json.data) ? json.data : [];
   return data.map((p) => ({
     pageId: String(p.id || ''),
+    actorId: String(p.additional_profile_id || p.id || ''),
     name: p.name || '',
     url: p.id ? `https://facebook.com/${p.id}` : '',
     category: p.category || '',
@@ -100,6 +102,7 @@ async function getUserPagesViaGraph(cookie, accessToken) {
     followers_count: typeof p.followers_count === 'number' ? p.followers_count : null,
     is_published: typeof p.is_published === 'boolean' ? p.is_published : null,
     page_access_token: p.access_token || '',
+    additional_profile_id: p.additional_profile_id ? String(p.additional_profile_id) : '',
   })).filter((p) => p.pageId);
 }
 
@@ -137,88 +140,7 @@ async function fetchTokens(cookie) {
   return t;
 }
 
-async function fetchTokensViaChrome(cookie) {
-  const { toCdpCookies } = require('./exporter');
-  const { findBundledChrome, bundledChromedriver, detectChromium } = require('./detect');
-  const fs = require('fs');
-  const path = require('path');
-  const { Builder } = require('selenium-webdriver');
-  const chrome = require('selenium-webdriver/chrome');
-  let exe = findBundledChrome();
-  let driverBin = exe ? bundledChromedriver() : '';
-  if (!exe) {
-    const d = detectChromium();
-    if (!d) throw new Error('Không tìm thấy Chrome để lấy dtsg');
-    exe = d.path;
-    driverBin = '';
-  }
-  const c = String(cookie || '').trim();
-  // parse cookie string to cdp cookies for injection
-  let raw = [];
-  try {
-    if (c.includes('c_user=')) {
-      const parts = c.split(';').map((s) => s.trim()).filter(Boolean);
-      raw = parts.map((kv) => { const i = kv.indexOf('='); return i < 0 ? null : { name: kv.slice(0, i).trim(), value: kv.slice(i + 1).trim() }; }).filter(Boolean);
-    }
-  } catch (_) {}
-  // fallback to exporter helper if available
-  try {
-    const acc = { cookie: c, cookies: [] };
-    const cd = toCdpCookies(acc);
-    if (cd && cd.length) raw = cd;
-    else if (!raw.length) raw = cd;
-  } catch (_) {}
-  const profileDir = path.join(require('os').tmpdir(), 'fb-dtsg-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6));
-  fs.mkdirSync(profileDir, { recursive: true });
-  const opts = new chrome.Options();
-  opts.setChromeBinaryPath(exe);
-  opts.addArguments(`--user-data-dir=${profileDir}`, '--no-first-run', '--no-default-browser-check', '--disable-blink-features=AutomationControlled', '--lang=vi-VN,vi,en-US,en');
-  opts.excludeSwitches('enable-automation');
-  opts.addArguments('--headless=new', '--disable-gpu', '--window-size=1280,900');
-  let builder = new Builder().forBrowser('chrome').setChromeOptions(opts);
-  const svc = driverBin ? new chrome.ServiceBuilder(driverBin) : null;
-  if (svc) builder = builder.setChromeService(svc);
-  if (!driverBin) {
-    const mng = path.join(path.dirname(require.resolve('selenium-webdriver/package.json')), 'bin', 'windows', 'selenium-manager.exe');
-    if (fs.existsSync(mng)) process.env.SE_MANAGER_PATH = mng;
-  } else process.env.SE_CHROMEDRIVER = driverBin;
-  const driver = await builder.build();
-  try {
-    await driver.get('https://www.facebook.com/');
-    await driver.sleep(1000);
-    for (const k of raw) {
-      const p = { name: k.name, value: String(k.value), domain: k.domain || '.facebook.com', path: k.path || '/', secure: k.secure !== false, httpOnly: !!k.httpOnly };
-      if (k.expires && k.expires > 0) p.expiry = Math.floor(k.expires);
-      try { await driver.manage().addCookie(p); } catch (_) { try { p.domain = 'facebook.com'; await driver.manage().addCookie(p); } catch (__) {} }
-    }
-    await driver.get('https://www.facebook.com/');
-    await driver.sleep(2800);
-    const t = await driver.executeScript(`
-      const html=document.documentElement.outerHTML;
-      function m(re){const x=html.match(re); return x?x[1]:'';}
-      return {dtsg: m(/"DTSGInitialData"[^}]*"token":"([^"]+)"/) || m(/fb_dtsg":"([^"]+)"/) || m(/name="fb_dtsg" value="([^"]+)"/) || '', lsd: m(/"LSD"[^}]*"token":"([^"]+)"/) || '', jazoest: (html.match(/jazoest=(\\d+)/)||[])[1]||'25537', rev: (html.match(/"client_revision":(\\d+)/)||[])[1]||'1047982283', hsi: m(/"hsi":"([^"]+)"/)||''};
-    `);
-    if (!t || !t.dtsg) throw new Error('Chrome: không lấy được fb_dtsg');
-    if (!t.lsd) throw new Error('Chrome: không lấy được lsd');
-    return t;
-  } finally {
-    try { await driver.quit(); } catch (_) {}
-    try { fs.rmSync(profileDir, { recursive: true, force: true }); } catch (_) {}
-  }
-}
-
-async function fetchTokensSmart(cookie) {
-  try {
-    return await fetchTokens(cookie);
-  } catch (e) {
-    const msg = String(e.message || '');
-    if (/fb_dtsg|DTSG|lsd/i.test(msg)) {
-      // Node fetch bị FB chặn (400 Sorry...), fallback qua Chrome headless
-      return await fetchTokensViaChrome(cookie);
-    }
-    throw e;
-  }
-}
+async function fetchTokensSmart(cookie) { return fetchTokens(cookie); }
 
 async function graphQL(cookie, tokens, docId, friendlyName, variables) {
   const uid = uidFromCookie(cookie) || '0';
@@ -329,14 +251,27 @@ async function getManagedPages(cookie) {
   return getManagedPagesViaGraphQL(cookie);
 }
 
+async function resolveActorId(cookie, pageId) {
+  // Ưu tiên additional_profile_id từ me/accounts (dạng 6159...), chính là av/actor_id thực trong curl
+  try {
+    const tok = await getFreshAccessTokenFromCookies(cookie);
+    const pages = await getUserPagesViaGraph(cookie, tok);
+    const hit = pages.find((p) => String(p.pageId) === String(pageId));
+    if (hit && hit.actorId && String(hit.actorId) !== String(pageId)) return String(hit.actorId);
+    if (hit && hit.additional_profile_id) return String(hit.additional_profile_id);
+  } catch (_) {}
+  return String(pageId);
+}
+
 async function setCountryRestriction(cookie, pageId, countryList, isBlocklist) {
   const list = (Array.isArray(countryList) ? countryList : []).map((s) => String(s).trim().toUpperCase()).filter(Boolean);
+  const actorId = await resolveActorId(cookie, pageId);
   const tokens = await fetchTokensSmart(cookie);
   const variables = {
     input: {
       country_list: list,
       is_blocklist: !!isBlocklist,
-      actor_id: String(pageId),
+      actor_id: actorId,
       client_mutation_id: '1',
     },
   };
@@ -387,150 +322,47 @@ async function scanForAccounts(accounts, onProgress, store) {
   return [...seen.values()];
 }
 
-async function setCountryRestrictionViaChrome(cookie, pageId, countryList, isBlocklist) {
+async function setCountryRestrictionWithCache(cookie, pageId, countryList, isBlocklist, cachedTokens, store) {
   const list = (Array.isArray(countryList) ? countryList : []).map((s) => String(s).trim().toUpperCase()).filter(Boolean);
-  const { toCdpCookies } = require('./exporter');
-  const { findBundledChrome, bundledChromedriver, detectChromium } = require('./detect');
-  const fs = require('fs');
-  const path = require('path');
-  const { Builder } = require('selenium-webdriver');
-  const chrome = require('selenium-webdriver/chrome');
-  let exe = findBundledChrome();
-  let driverBin = exe ? bundledChromedriver() : '';
-  if (!exe) {
-    const d = detectChromium();
-    if (!d) throw new Error('Không tìm thấy Chrome');
-    exe = d.path;
-  }
-  const c = String(cookie || '').trim();
-  let raw = [];
-  try {
-    const acc = { cookie: c, cookies: [] };
-    raw = toCdpCookies(acc) || [];
-    if (!raw.length && c.includes('c_user=')) {
-      raw = c.split(';').map((s) => s.trim()).filter(Boolean).map((kv) => { const i = kv.indexOf('='); return i < 0 ? null : { name: kv.slice(0, i).trim(), value: kv.slice(i + 1).trim() }; }).filter(Boolean);
-    }
-  } catch (_) {}
-  const profileDir = path.join(require('os').tmpdir(), 'fb-restrict-' + Date.now() + '-' + Math.random().toString(36).slice(2, 5));
-  fs.mkdirSync(profileDir, { recursive: true });
-  const opts = new chrome.Options();
-  opts.setChromeBinaryPath(exe);
-  opts.addArguments(`--user-data-dir=${profileDir}`, '--no-first-run', '--no-default-browser-check', '--disable-blink-features=AutomationControlled', '--lang=vi-VN,vi,en-US,en');
-  opts.excludeSwitches('enable-automation');
-  opts.addArguments('--headless=new', '--disable-gpu', '--window-size=1280,900');
-  let builder = new Builder().forBrowser('chrome').setChromeOptions(opts);
-  const svc = driverBin ? new chrome.ServiceBuilder(driverBin) : null;
-  if (svc) builder = builder.setChromeService(svc);
-  if (!driverBin) {
-    const mng = path.join(path.dirname(require.resolve('selenium-webdriver/package.json')), 'bin', 'windows', 'selenium-manager.exe');
-    if (fs.existsSync(mng)) process.env.SE_MANAGER_PATH = mng;
-  } else process.env.SE_CHROMEDRIVER = driverBin;
-  const driver = await builder.build();
-  try {
-    await driver.get('https://www.facebook.com/');
-    await driver.sleep(900);
-    for (const k of raw) {
-      const p = { name: k.name, value: String(k.value), domain: k.domain || '.facebook.com', path: k.path || '/', secure: k.secure !== false, httpOnly: !!k.httpOnly };
-      if (k.expires && k.expires > 0) p.expiry = Math.floor(k.expires);
-      try { await driver.manage().addCookie(p); } catch (_) { try { p.domain = 'facebook.com'; await driver.manage().addCookie(p); } catch (__) {} }
-    }
-    await driver.get('https://www.facebook.com/');
-    await driver.sleep(2600);
-    const res = await driver.executeAsyncScript(`
-      const pageId = arguments[0];
-      const list = arguments[1];
-      const isBlock = arguments[2];
-      const docId = arguments[3];
-      const cb = arguments[arguments.length - 1];
-      (async () => {
-        try {
-          const html = document.documentElement.outerHTML;
-          function m(re){ const x = html.match(re); return x ? x[1] : ''; }
-          const dtsg = m(/"DTSGInitialData"[^}]*"token":"([^"]+)"/) || m(/fb_dtsg":"([^"]+)"/) || '';
-          const lsd = m(/"LSD"[^}]*"token":"([^"]+)"/) || '';
-          const jazoest = (html.match(/jazoest=(\\d+)/)||[])[1] || '25537';
-          const rev = (html.match(/"client_revision":(\\d+)/)||[])[1] || '1047985973';
-          const hsi = m(/"hsi":"([^"]+)"/) || '';
-          if (!dtsg || !lsd) return cb({ ok: false, error: 'Chrome: không lấy được dtsg/lsd' });
-          const variables = { input: { country_list: list, is_blocklist: !!isBlock, actor_id: String(pageId), client_mutation_id: '1' } };
-          const body = new URLSearchParams({
-            av: String(pageId), __user: String(pageId), __a: '1', __req: 'w',
-            __hsi: hsi, __rev: rev, __comet_req: '1',
-            fb_dtsg: dtsg, lsd: lsd, jazoest: jazoest,
-            __spin_r: rev, __spin_b: 'trunk', __spin_t: String(Math.floor(Date.now()/1000)),
-            fb_api_caller_class: 'RelayModern',
-            fb_api_req_friendly_name: 'CountryRestrictionSettingMutation',
-            variables: JSON.stringify(variables),
-            doc_id: docId, server_timestamps: 'true'
-          });
-          const r = await fetch('https://www.facebook.com/api/graphql/', {
-            method: 'POST',
-            headers: { 'content-type': 'application/x-www-form-urlencoded', 'x-fb-friendly-name': 'CountryRestrictionSettingMutation', 'x-fb-lsd': lsd, origin: 'https://www.facebook.com' },
-            body: body.toString(), credentials: 'include'
-          });
-          let text = await r.text();
-          text = text.replace(/^for\\s*\\(\\s*;\\s*;\\s*\\)\\s*;\\s*/, '');
-          let json; try { json = JSON.parse(text); } catch (e) { return cb({ ok: false, error: 'GraphQL không phải JSON: ' + text.slice(0,500) }); }
-          if (json && json.error) return cb({ ok: false, error: (json.errorSummary || 'FB error ' + json.error), raw: text.slice(0,600) });
-          if (json.errors) return cb({ ok: false, error: json.errors[0]?.message || JSON.stringify(json.errors).slice(0,500), raw: text.slice(0,600) });
-          const payload = json?.data?.country_restriction_setting_update || json?.data?.update_country_restriction || json?.data || null;
-          return cb({ ok: true, payload, country_list: list, is_blocklist: !!isBlock });
-        } catch (e) { return cb({ ok: false, error: String(e.message || e) }); }
-      })();
-    `, String(pageId), list, !!isBlocklist, String(DOC_RESTRICT));
-    if (!res || !res.ok) throw new Error(res ? (res.error || 'Chrome GraphQL lỗi') : 'Chrome: không có response');
-    return res;
-  } finally {
-    try { await driver.quit(); } catch (_) {}
-    try { fs.rmSync(profileDir, { recursive: true, force: true }); } catch (_) {}
-  }
-}
-
-async function setCountryRestrictionWithCache(cookie, pageId, countryList, isBlocklist, cachedTokens) {
-  const list = (Array.isArray(countryList) ? countryList : []).map((s) => String(s).trim().toUpperCase()).filter(Boolean);
-  let tokens = cachedTokens && cachedTokens.dtsg && cachedTokens.lsd ? cachedTokens : null;
-  if (!tokens) {
-    try { tokens = await fetchTokensSmart(cookie); } catch (_) { tokens = null; }
-  }
-  if (tokens) {
-    const variables = {
-      input: {
-        country_list: list,
-        is_blocklist: !!isBlocklist,
-        actor_id: String(pageId),
-        client_mutation_id: '1',
-      },
-    };
+  // Ưu tiên actorId dạng 615... từ store (đã lưu khi quét), không thì resolve qua Graph
+  let actorId = String(pageId);
+  if (store && typeof store.getPage === 'function') {
     try {
-      const json = await graphQL(cookie, tokens, DOC_RESTRICT, 'CountryRestrictionSettingMutation', variables);
-      const payload = json?.data?.country_restriction_setting_update || json?.data?.update_country_restriction || null;
-      if (json.errors) throw new Error(json.errors[0].message);
-      return { ok: true, payload, country_list: list, is_blocklist: !!isBlocklist };
-    } catch (e) {
-      const msg = String(e.message || '');
-      // Với lỗi FB chung (1357032 Đã xảy ra lỗi), fallback sang Chrome ngay thay vì retry Node
-      if (/Đã xảy ra lỗi|1357032|1357/i.test(msg)) {
-        return await setCountryRestrictionViaChrome(cookie, pageId, list, isBlocklist);
-      }
-      if (/fb_dtsg|DTSG|lsd/i.test(msg)) {
-        try {
-          const fresh = await fetchTokensSmart(cookie);
-          const json2 = await graphQL(cookie, fresh, DOC_RESTRICT, 'CountryRestrictionSettingMutation', variables);
-          const payload2 = json2?.data?.country_restriction_setting_update || json2?.data?.update_country_restriction || null;
-          if (json2.errors) throw new Error(json2.errors[0].message);
-          return { ok: true, payload: payload2, country_list: list, is_blocklist: !!isBlocklist, freshTokens: fresh };
-        } catch (e2) {
-          if (/Đã xảy ra lỗi|1357032/i.test(String(e2.message||''))) {
-            return await setCountryRestrictionViaChrome(cookie, pageId, list, isBlocklist);
-          }
-          throw e2;
-        }
-      }
-      throw e;
-    }
+      const p = store.getPage(pageId);
+      if (p && p.actorId) actorId = String(p.actorId);
+      else if (p && p.additional_profile_id) actorId = String(p.additional_profile_id);
+    } catch (_) {}
   }
-  // Không có tokens cache → đi thẳng Chrome
-  return await setCountryRestrictionViaChrome(cookie, pageId, list, isBlocklist);
+  if (actorId === String(pageId)) {
+    try { actorId = await resolveActorId(cookie, pageId); } catch (_) {}
+  }
+  let tokens = cachedTokens && cachedTokens.dtsg && cachedTokens.lsd ? cachedTokens : null;
+  if (!tokens) tokens = await fetchTokensSmart(cookie);
+  const variables = {
+    input: {
+      country_list: list,
+      is_blocklist: !!isBlocklist,
+      actor_id: actorId,
+      client_mutation_id: '1',
+    },
+  };
+  try {
+    const json = await graphQL(cookie, tokens, DOC_RESTRICT, 'CountryRestrictionSettingMutation', variables);
+    const payload = json?.data?.country_restriction_setting_update || json?.data?.update_country_restriction || null;
+    if (json.errors) throw new Error(json.errors[0].message);
+    return { ok: true, payload, country_list: list, is_blocklist: !!isBlocklist };
+  } catch (e) {
+    const msg = String(e.message || '');
+    if (/Đã xảy ra lỗi|1357032|1357/i.test(msg)) throw e;
+    if (/fb_dtsg|DTSG|lsd/i.test(msg)) {
+      const fresh = await fetchTokensSmart(cookie);
+      const json2 = await graphQL(cookie, fresh, DOC_RESTRICT, 'CountryRestrictionSettingMutation', variables);
+      const payload2 = json2?.data?.country_restriction_setting_update || json2?.data?.update_country_restriction || null;
+      if (json2.errors) throw new Error(json2.errors[0].message);
+      return { ok: true, payload: payload2, country_list: list, is_blocklist: !!isBlocklist, freshTokens: fresh };
+    }
+    throw e;
+  }
 }
 
 module.exports = { getManagedPages, getManagedPagesViaGraphQL, getFreshAccessTokenFromCookies, getUserPagesViaGraph, fetchTokens, fetchTokensViaChrome, fetchTokensSmart, parseTokens, setCountryRestriction, setCountryRestrictionWithCache, setCountryRestrictionViaChrome, scanForAccounts, uidFromCookie };

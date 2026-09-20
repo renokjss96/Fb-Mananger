@@ -216,6 +216,8 @@ class Store {
       const existing = this.getPage(pid);
       const patch = {
         pageId: pid,
+        actorId: String(row.actorId || row.additional_profile_id || pid),
+        additional_profile_id: row.additional_profile_id ? String(row.additional_profile_id) : (existing ? existing.additional_profile_id : ''),
         name: row.name || (existing ? existing.name : ''),
         url: row.url || (existing ? existing.url : ''),
         category: row.category || (existing ? existing.category : ''),
@@ -231,6 +233,11 @@ class Store {
         restrictionStatus: row.restrictionStatus || (existing ? existing.restrictionStatus : 'none'),
         updatedAt: nowIso(),
       };
+      if (!patch.actorId || patch.actorId === pid) {
+        // giữ actorId cũ nếu row không có additional_profile_id
+        if (existing && existing.actorId) patch.actorId = existing.actorId;
+        if (existing && existing.additional_profile_id) patch.additional_profile_id = existing.additional_profile_id;
+      }
       if (!patch.name && existing) patch.name = existing.name;
       if (existing) {
         Object.assign(existing, patch);
@@ -315,6 +322,8 @@ function normalizePage(p) {
   return {
     id: p.id || newId(),
     pageId: String(p.pageId || p.id || '').trim(),
+    actorId: String(p.actorId || p.additional_profile_id || p.pageId || p.id || '').trim(),
+    additional_profile_id: p.additional_profile_id ? String(p.additional_profile_id) : '',
     name: p.name || '',
     url: p.url || '',
     category: p.category || '',
