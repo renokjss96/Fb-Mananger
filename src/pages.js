@@ -117,15 +117,21 @@ function parseTokens(html) {
 }
 
 async function fetchTokens(cookie) {
-  const res = await fetch('https://www.facebook.com/', {
-    headers: {
-      cookie,
-      'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36',
-      'accept': 'text/html,application/xhtml+xml',
-    },
-  });
-  const html = await res.text();
-  const t = parseTokens(html);
+  // Node fetch với Chrome 153 UA bị FB trả 400 "Sorry..." — thử minimal headers trước
+  // A/B test trên máy thật: no-UA -> 200 hasDTSG true, UA Chrome153 -> 400
+  const tries = [
+    { cookie, accept: 'text/html,application/xhtml+xml', 'accept-language': 'vi,en;q=0.9' },
+    { cookie, 'user-agent': 'Mozilla/5.0', accept: 'text/html,application/xhtml+xml' },
+  ];
+  let lastHtml = '';
+  for (const headers of tries) {
+    const res = await fetch('https://www.facebook.com/', { headers });
+    const html = await res.text();
+    lastHtml = html;
+    const t = parseTokens(html);
+    if (t.dtsg && t.lsd) return t;
+  }
+  const t = parseTokens(lastHtml);
   if (!t.dtsg) throw new Error('Không lấy được fb_dtsg - cookie hết hạn hoặc checkpoint');
   if (!t.lsd) throw new Error('Không lấy được lsd');
   return t;
