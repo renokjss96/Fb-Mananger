@@ -142,13 +142,36 @@ async function fetchTokens(cookie) {
 
 async function fetchTokensSmart(cookie) { return fetchTokens(cookie); }
 
+function getLogFilePath() {
+  const path = require('path');
+  const os = require('os');
+  // Ưu tiên cùng chỗ với fb-manager-data.json (như main.js:resolveDataRoot)
+  try {
+    const { app } = require('electron');
+    if (app && typeof app.getPath === 'function') {
+      const userData = app.getPath('userData');
+      if (userData) return path.join(userData, 'country-restrict.log');
+    }
+  } catch (_) {}
+  // Thử portable data/
+  try {
+    const fs = require('fs');
+    const candidates = [
+      path.join(__dirname, '..', 'data'),
+      path.join(path.dirname(process.execPath || ''), 'data'),
+    ];
+    for (const c of candidates) {
+      try { fs.mkdirSync(c, { recursive: true }); const probe = path.join(c, '.write-test'); fs.writeFileSync(probe, 'ok'); fs.unlinkSync(probe); return path.join(c, 'country-restrict.log'); } catch (_) {}
+    }
+  } catch (_) {}
+  return path.join(os.homedir(), 'AppData', 'Roaming', 'fb-manager', 'country-restrict.log');
+}
 function appendRestrictLog(obj) {
   try {
     const fs = require('fs');
     const path = require('path');
-    const dir = path.join(__dirname, '..', 'logs');
-    fs.mkdirSync(dir, { recursive: true });
-    const file = path.join(dir, 'country-restrict.log');
+    const file = getLogFilePath();
+    fs.mkdirSync(path.dirname(file), { recursive: true });
     const line = `[${new Date().toISOString()}] ${JSON.stringify(obj)}\n`;
     fs.appendFileSync(file, line, 'utf8');
   } catch (_) {}
@@ -377,4 +400,4 @@ async function setCountryRestrictionWithCache(cookie, pageId, countryList, isBlo
   }
 }
 
-module.exports = { getManagedPages, getManagedPagesViaGraphQL, getFreshAccessTokenFromCookies, getUserPagesViaGraph, fetchTokens, fetchTokensSmart, parseTokens, setCountryRestriction, setCountryRestrictionWithCache, scanForAccounts, uidFromCookie, resolveActorId };
+module.exports = { getManagedPages, getManagedPagesViaGraphQL, getFreshAccessTokenFromCookies, getUserPagesViaGraph, fetchTokens, fetchTokensSmart, parseTokens, setCountryRestriction, setCountryRestrictionWithCache, scanForAccounts, uidFromCookie, resolveActorId, getLogFilePath };

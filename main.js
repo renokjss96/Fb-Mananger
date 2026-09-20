@@ -258,6 +258,34 @@ function registerIpc() {
   // ---- pages ----
   ipcMain.handle('pages:list', () => ({ ok: true, pages: store.listPages() }));
 
+  ipcMain.handle('pages:restrictLog', () => {
+    try {
+      const { getLogFilePath } = require('./src/pages');
+      const fs2 = require('fs');
+      const p = getLogFilePath();
+      const exists = fs2.existsSync(p);
+      const text = exists ? fs2.readFileSync(p, 'utf8') : '';
+      // chỉ trả 200 dòng cuối để không nặng
+      const lines = text.split('\n').filter(Boolean);
+      const tail = lines.slice(-200).join('\n');
+      return { ok: true, path: p, exists, lines: lines.length, tail };
+    } catch (e) {
+      return { ok: false, error: String(e.message || e) };
+    }
+  });
+  ipcMain.handle('pages:restrictLogPath', () => {
+    try { const { getLogFilePath } = require('./src/pages'); return { ok: true, path: getLogFilePath() }; } catch (e) { return { ok: false, error: String(e.message || e) }; }
+  });
+  ipcMain.handle('pages:restrictLogClear', () => {
+    try {
+      const { getLogFilePath } = require('./src/pages');
+      const fs2 = require('fs');
+      const p = getLogFilePath();
+      if (fs2.existsSync(p)) fs2.writeFileSync(p, '', 'utf8');
+      return { ok: true, path: p };
+    } catch (e) { return { ok: false, error: String(e.message || e) }; }
+  });
+
   ipcMain.handle('pages:scan', async (e, { ids }) => {
     const filterIds = Array.isArray(ids) && ids.length ? ids.map(String) : null;
     const targets = filterIds
