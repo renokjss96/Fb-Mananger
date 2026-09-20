@@ -181,6 +181,13 @@ function appendRestrictLog(obj) {
   } catch (_) {}
 }
 
+function ensureIUserCookie(cookie, actorId) {
+  const c = String(cookie || '');
+  if (/i_user=/.test(c)) return c;
+  if (!actorId) return c;
+  return c + (c.endsWith(';') ? ' ' : '; ') + `i_user=${actorId}`;
+}
+
 async function graphQL(cookie, tokens, docId, friendlyName, variables) {
   const uid = uidFromCookie(cookie) || '0';
   let av = uid;
@@ -188,39 +195,26 @@ async function graphQL(cookie, tokens, docId, friendlyName, variables) {
     const actorFromVars = variables && variables.input && variables.input.actor_id;
     if (actorFromVars) av = String(actorFromVars);
   } catch (_) {}
+  // Cookie phải có i_user=actorId như curl của anh mới pass 1357032
+  const cookieWithIUser = ensureIUserCookie(cookie, av);
+  // Tối giản như curl Postman của anh — chỉ những field thực sự cần
   const body = new URLSearchParams({
     av,
     __user: av,
-    __a: '1',
-    __req: 'w',
-    __hs: tokens.hsi ? `20716.HYP:comet_plat_default_pkg.2.1..0` : '',
-    __hsi: tokens.hsi || '',
-    __rev: tokens.rev || '1047985973',
-    __s: tokens.s || '',
-    __hsdp: tokens.hsdp || '',
-    __hblp: '1',
-    __comet_req: '1',
-    __dyn: tokens.dyn || '',
-    __csr: tokens.csr || '',
     fb_dtsg: tokens.dtsg,
-    lsd: tokens.lsd,
-    jazoest: tokens.jazoest,
-    __spin_r: tokens.rev || '1047985973',
-    __spin_b: 'trunk',
-    __spin_t: String(Math.floor(Date.now() / 1000)),
     fb_api_caller_class: 'RelayModern',
     fb_api_req_friendly_name: friendlyName,
+    server_timestamps: 'true',
     variables: JSON.stringify(variables),
     doc_id: docId,
-    server_timestamps: 'true',
   });
   const bodyStr = body.toString();
-  const reqLog = { kind: 'graphql_req', friendlyName, docId, av, actor_id: (variables && variables.input && variables.input.actor_id) || '', country_list: (variables && variables.input && variables.input.country_list) || [], is_blocklist: variables && variables.input && variables.input.is_blocklist, c_user: uid, dtsg: String(tokens.dtsg || '').slice(0, 24) + '...', lsd: tokens.lsd, hsi: tokens.hsi, rev: tokens.rev, s: tokens.s ? tokens.s.slice(0, 32) + '...' : '', hsdp: tokens.hsdp ? 'yes' : 'no', body: bodyStr.slice(0, 1400) };
+  const reqLog = { kind: 'graphql_req', friendlyName, docId, av, actor_id: (variables && variables.input && variables.input.actor_id) || '', country_list: (variables && variables.input && variables.input.country_list) || [], is_blocklist: variables && variables.input && variables.input.is_blocklist, c_user: uid, dtsg: String(tokens.dtsg || '').slice(0, 24) + '...', lsd: tokens.lsd, cookie_has_i_user: /i_user=/.test(cookieWithIUser), body: bodyStr.slice(0, 1200) };
   appendRestrictLog(reqLog);
   const res = await fetch('https://www.facebook.com/api/graphql/', {
     method: 'POST',
     headers: {
-      cookie,
+      cookie: cookieWithIUser,
       'content-type': 'application/x-www-form-urlencoded',
       'x-fb-friendly-name': friendlyName,
       'x-fb-lsd': tokens.lsd,
