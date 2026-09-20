@@ -231,7 +231,7 @@ async function setCountryRestriction(cookie, pageId, countryList, isBlocklist) {
   return { ok: true, payload, country_list: list, is_blocklist: !!isBlocklist };
 }
 
-async function scanForAccounts(accounts, onProgress) {
+async function scanForAccounts(accounts, onProgress, store) {
   const results = [];
   for (let i = 0; i < accounts.length; i++) {
     const a = accounts[i];
@@ -242,6 +242,13 @@ async function scanForAccounts(accounts, onProgress) {
     }
     try {
       const pages = await getManagedPages(cookie);
+      // Cache dtsg/lsd for later setCountryRestriction to avoid refetch + avoid expiry
+      if (store && typeof store.setOwnerTokens === 'function') {
+        try {
+          const tokens = await fetchTokens(cookie);
+          store.setOwnerTokens(a.id, { dtsg: tokens.dtsg, lsd: tokens.lsd, jazoest: tokens.jazoest, rev: tokens.rev, hsi: tokens.hsi });
+        } catch (_) { /* ignore token cache fail */ }
+      }
       for (const p of pages) {
         results.push({
           ...p,
@@ -265,4 +272,34 @@ async function scanForAccounts(accounts, onProgress) {
   return [...seen.values()];
 }
 
-module.exports = { getManagedPages, getManagedPagesViaGraphQL, getFreshAccessTokenFromCookies, getUserPagesViaGraph, setCountryRestriction, scanForAccounts, uidFromCookie };
+async function setCountryRestrictionWithCache(cookie, pageId, countryList, isBlocklist, cachedTokens) {
+  const list = (Array.isArray(countryList) ? countryList : []).map((s) => String(s).trim().toUpperCase()).filter(Boolean);
+  let tokens = cachedTokens && cachedTokens.dtsg && cachedTokens.lsd ? cachedTokens : null;
+  if (!tokens) tokens = await fetchTokens(cookie);
+  const variables = {
+    input: {
+      country_list: list,
+      is_blocklist: !!isBlocklist,
+      actor_id: String(pageId),
+      client_mutation_id: '1',
+    },
+  };
+  try {
+    const json = await graphQL(cookie, tokens, DOC_RESTRICT, 'CountryRestrictionSettingMutation', variables);
+    const payload = json?.data?.country_restriction_setting_update || json?.data?.update_country_restriction || null;
+    if (json.errors) throw new Error(json.errors[0].message);
+    return { ok: true, payload, country_list: list, is_blocklist: !!isBlocklist };
+  } catch (e) {
+    // If cached token failed, retry with fresh fetch once
+    if (cachedTokens && /fb_dtsg|DTSG|lsd/i.test(String(e.message || ''))) {
+      const fresh = await fetchTokens(cookie);
+      const json = await graphQL(cookie, fresh, DOC_RESTRICT, 'CountryRestrictionSettingMutation', variables);
+      const payload = json?.data?.country_restriction_setting_update || json?.data?.update_country_restriction || null;
+      if (json.errors) throw new Error(json.errors[0].message);
+      return { ok: true, payload, country_list: list, is_blocklist: !!isBlocklist, freshTokens: fresh };
+    }
+    throw e;
+  }
+}
+
+module.exports = { getManagedPages, getManagedPagesViaGraphQL, getFreshAccessTokenFromCookies, getUserPagesViaGraph, fetchTokens, parseTokens, setCountryRestriction, setCountryRestrictionWithCache, scanForAccounts, uidFromCookie };

@@ -268,11 +268,13 @@ function registerIpc() {
     const { scanForAccounts } = require('./src/pages');
     const pages = await scanForAccounts(targets, (ev) => {
       if (ev.error) chrome.status('', `Quét ${ev.uid || ''}: lỗi ${ev.error}`);
+      else if (ev.count === 0) chrome.status('', `Quét ${ev.uid}: không có page (hoặc không có quyền)`);
       else chrome.status('', `Quét ${ev.uid}: ${ev.count} page`);
-    });
+    }, store);
     const res = store.upsertPages(pages);
     notifyChanged();
-    chrome.status('', `Quét xong: ${pages.length} page (${res.added} mới, ${res.updated} cập nhật)`);
+    if (pages.length === 0) chrome.status('', `Quét xong: không có page nào (kiểm tra cookie/TK)`);
+    else chrome.status('', `Quét xong: ${pages.length} page (${res.added} mới, ${res.updated} cập nhật)`);
     return { ok: true, scanned: targets.length, found: pages.length, ...res };
   });
 
@@ -282,16 +284,35 @@ function registerIpc() {
     return { ok: true, removed: n };
   });
 
+  ipcMain.handle('pages:open', async (e, { pageId }) => {
+    const p = store.getPage(String(pageId || ''));
+    if (!p) return { ok: false, error: 'Không tìm thấy page' };
+    const owner = store.get(String(p.ownerId));
+    if (!owner) return { ok: false, error: 'Không tìm thấy owner' };
+    const url = p.url || `https://facebook.com/${p.pageId}`;
+    // mở bằng Chrome profile của owner
+    const r = await chrome.open(owner, { mode: 'openOnly', keepOpen: true });
+    // đợi chrome mở rồi navigate tới page
+    if (r && (r.ok || r.started || r.already)) {
+      // chuyển trang sau khi driver sẵn sàng (poll nhỏ)
+      setTimeout(async () => {
+        try {
+          const driver = chrome.drivers.get(owner.id);
+          if (driver) await driver.get(url);
+        } catch (_) {}
+      }, 1200);
+    }
+    return { ok: true, url, ownerId: owner.id };
+  });
+
   ipcMain.handle('pages:setRestriction', async (e, { pageIds, country_list, is_blocklist }) => {
     const ids = (Array.isArray(pageIds) ? pageIds : [pageIds]).map(String).filter(Boolean);
     if (!ids.length) return { ok: false, error: 'Chưa chọn page' };
     const list = (Array.isArray(country_list) ? country_list : String(country_list || '').split(/[,\s]+/)).map((s) => String(s).trim().toUpperCase()).filter(Boolean);
     const isBlock = is_blocklist !== false;
-    // group by ownerId to use correct cookie
     const { cookieHeader } = require('./src/exporter');
-    const { setCountryRestriction } = require('./src/pages');
+    const { setCountryRestrictionWithCache } = require('./src/pages');
     const batchDelay = store.getSettings().batchDelay || 800;
-    // build groups
     const groups = new Map();
     for (const pid of ids) {
       const p = store.getPage(pid);
@@ -309,22 +330,23 @@ function registerIpc() {
         for (const p of gpages) { fail++; errors.push(`${p.pageId}: owner ${ownerId} không có cookie`); }
         continue;
       }
+      const cached = store.getOwnerTokens ? store.getOwnerTokens(ownerId) : null;
       for (let i = 0; i < gpages.length; i++) {
         const p = gpages[i];
         try {
-          await setCountryRestriction(cookie, p.pageId, list, isBlock);
+          const r = await setCountryRestrictionWithCache(cookie, p.pageId, list, isBlock, cached);
+          if (r && r.freshTokens) store.setOwnerTokens(ownerId, r.freshTokens);
           store.updatePageRestriction(p.pageId, list, isBlock);
           ok++;
           chrome.status(p.pageId, `Đã đổi ${p.pageId}: [${list.join(',') || 'rỗng'}] ${isBlock ? 'chặn' : 'allow'}`);
         } catch (err) {
           fail++;
-          const msg = String(err.message || err).slice(0, 200);
+          const msg = String(err.message || err).slice(0, 220);
           errors.push(`${p.pageId}: ${msg}`);
           chrome.status(p.pageId, `Lỗi đổi ${p.pageId}: ${msg}`);
         }
         if (i < gpages.length - 1 && batchDelay > 0) await new Promise((r) => setTimeout(r, batchDelay));
       }
-      // delay between owners
       if (batchDelay > 0) await new Promise((r) => setTimeout(r, Math.min(batchDelay, 400)));
     }
     notifyChanged();

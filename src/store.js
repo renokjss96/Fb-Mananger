@@ -59,7 +59,7 @@ function emptyAccount(partial = {}) {
 class Store {
   constructor(file) {
     this.file = file;
-    this.data = { accounts: [], pages: [], settings: { ...DEFAULTS } };
+    this.data = { accounts: [], pages: [], ownerTokens: {}, settings: { ...DEFAULTS } };
   }
 
   load() {
@@ -68,6 +68,8 @@ class Store {
       if (Array.isArray(parsed.accounts)) this.data.accounts = parsed.accounts.map(normalizeAccount);
       if (Array.isArray(parsed.pages)) this.data.pages = parsed.pages.map(normalizePage);
       else this.data.pages = [];
+      if (parsed.ownerTokens && typeof parsed.ownerTokens === 'object') this.data.ownerTokens = parsed.ownerTokens;
+      else this.data.ownerTokens = {};
       if (parsed.settings) {
         this.data.settings = { ...DEFAULTS, ...parsed.settings };
         this.data.settings.threads = clampThreads(this.data.settings.threads);
@@ -270,6 +272,18 @@ class Store {
     this.data.pages = this.listPages().filter((p) => String(p.ownerId) !== key);
     this.save();
     return before - this.data.pages.length;
+  }
+
+  // ---- owner tokens cache (dtsg/lsd cho đổi quốc gia) ----
+  setOwnerTokens(ownerId, tokens) {
+    if (!ownerId) return;
+    if (!this.data.ownerTokens) this.data.ownerTokens = {};
+    this.data.ownerTokens[String(ownerId)] = { ...tokens, updatedAt: nowIso() };
+    this.save();
+  }
+  getOwnerTokens(ownerId) {
+    if (!this.data.ownerTokens) return null;
+    return this.data.ownerTokens[String(ownerId)] || null;
   }
 }
 

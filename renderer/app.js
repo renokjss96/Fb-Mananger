@@ -265,12 +265,29 @@ function renderPagesKpi() {
     <div class="card"><div class="k">Đã chọn</div><div class="v">${sel}</div></div>
   `;
 }
+function pagesUserLabel(a) {
+  const hasCookie = !!(a.cookie && String(a.cookie).trim());
+  const isCp = a.status === 'checkpoint';
+  const tag = !hasCookie ? ' — chưa có cookie' : isCp ? ` — CP ${a.checkpointCode || ''}`.trim() : '';
+  const base = a.alias || a.name || a.uid || String(a.id).slice(0, 8);
+  return `${base}${tag}`;
+}
 function renderPagesFilter() {
   const sel = $('#pagesUserFilter');
   if (!sel) return;
   const cur = sel.value;
-  const owners = [...new Map(pages.map((p) => [String(p.ownerId), p.ownerUid || String(p.ownerId).slice(0, 8)])).entries()];
-  const opts = ['<option value="">Tất cả user</option>'].concat(owners.map(([id, uid]) => `<option value="${esc(id)}">${esc(uid || id)}</option>`));
+  // Hiển thị TẤT CẢ user, không chỉ owner có page — để chọn quét đúng user
+  const pageCountByOwner = new Map();
+  for (const p of pages) {
+    const k = String(p.ownerId);
+    pageCountByOwner.set(k, (pageCountByOwner.get(k) || 0) + 1);
+  }
+  const opts = ['<option value="">Tất cả user</option>'].concat(accounts.map((a) => {
+    const cnt = pageCountByOwner.get(String(a.id)) || 0;
+    const suffix = cnt ? ` — ${cnt} page` : ' — 0 page';
+    const statusNote = a.status === 'checkpoint' ? ' · CP' : (!a.cookie ? ' · no cookie' : '');
+    return `<option value="${esc(a.id)}">${esc(pagesUserLabel(a) + suffix + statusNote)}</option>`;
+  }));
   sel.innerHTML = opts.join('');
   if (cur && [...sel.options].some((o) => o.value === cur)) sel.value = cur;
 }
@@ -875,6 +892,78 @@ function wire() {
       renderPagesTable();
     });
   });
+  function openPagesRestrict(ids) {
+    const arr = (ids || []).map(String).filter(Boolean);
+    if (!arr.length) { toast('Chưa chọn page'); return; }
+    selectedPages.clear();
+    arr.forEach((id) => selectedPages.add(id));
+    renderPagesTable();
+    const hint = $('#dlgRestrictHint');
+    if (hint) {
+      if (arr.length === 1) {
+        const t = pages.find((p) => p.pageId === arr[0]);
+        hint.textContent = t ? `Áp dụng cho 1 page: ${t.name} (${t.pageId})` : 'Áp dụng cho 1 page.';
+      } else hint.textContent = `Áp dụng cho ${arr.length} page đã chọn.`;
+    }
+    $('#dlgPageRestrict').showModal();
+  }
+  async function openPageInOwnerChrome(pageId) {
+    const pid = String(pageId || '').trim();
+    if (!pid) return;
+    try {
+      const r = await invoke('pages:open', { pageId: pid });
+      if (!r.ok) toast(r.error || 'Không mở được page');
+      else toast('Đã mở page: ' + (r.url || pid));
+    } catch (err) { toast(String(err.message || err)); }
+  }
+  function showPagesCtxMenu(e, page) {
+    closeMenus();
+    const pop = document.createElement('div');
+    pop.id = 'ctxMenu';
+    pop.className = 'ctx-menu';
+    const isPicked = selectedPages.has(page.pageId);
+    pop.innerHTML = `
+      <div class="ctx-head">${esc(page.name || page.pageId)}<span>${esc(page.pageId)} · ${esc(page.category || '')}</span></div>
+      <div class="ctx-sep"></div>
+      <button data-act="open-page">Mở page (Chrome owner)</button>
+      <button data-act="copy-page-id">Copy Page ID</button>
+      <button data-act="copy-page-url">Copy link page</button>
+      <div class="ctx-sep"></div>
+      <button data-act="restrict-this">Đổi hạn chế quốc gia…</button>
+      <button data-act="restrict-ca">Chặn CA</button>
+      <button data-act="restrict-vn">Chặn VN</button>
+      <button data-act="restrict-clear">Gỡ hết chặn</button>
+      <div class="ctx-sep"></div>
+      <button data-act="toggle-pick">${isPicked ? 'Bỏ chọn' : 'Chọn page này'}</button>
+    `;
+    placeFixedMenu(pop, e.clientX, e.clientY);
+    const tr = document.querySelector(`#tbodyPages tr[data-page-id="${CSS.escape(page.pageId)}"]`);
+    if (tr) tr.classList.add('ctx-target');
+    pop.addEventListener('contextmenu', (ev) => ev.preventDefault());
+    pop.addEventListener('click', async (ev) => {
+      const b = ev.target.closest('button[data-act]');
+      if (!b) return;
+      const act = b.dataset.act;
+      closeMenus();
+      if (act === 'open-page') await openPageInOwnerChrome(page.pageId);
+      else if (act === 'copy-page-id') { await invoke('clipboard:write', { text: page.pageId }); toast('Đã copy Page ID'); }
+      else if (act === 'copy-page-url') { const u = page.url || `https://facebook.com/${page.pageId}`; await invoke('clipboard:write', { text: u }); toast('Đã copy link page'); }
+      else if (act === 'restrict-this') openPagesRestrict([page.pageId]);
+      else if (act === 'restrict-ca') {
+        try { const r = await invoke('pages:setRestriction', { pageIds: [page.pageId], country_list: ['CA'], is_blocklist: true }); toast(r.ok ? 'Đã chặn CA' : (r.errors && r.errors[0]) || 'Lỗi'); await refresh(); } catch (err) { toast(String(err.message || err)); }
+      }
+      else if (act === 'restrict-vn') {
+        try { const r = await invoke('pages:setRestriction', { pageIds: [page.pageId], country_list: ['VN'], is_blocklist: true }); toast(r.ok ? 'Đã chặn VN' : (r.errors && r.errors[0]) || 'Lỗi'); await refresh(); } catch (err) { toast(String(err.message || err)); }
+      }
+      else if (act === 'restrict-clear') {
+        try { const r = await invoke('pages:setRestriction', { pageIds: [page.pageId], country_list: [], is_blocklist: true }); toast(r.ok ? 'Đã gỡ chặn' : (r.errors && r.errors[0]) || 'Lỗi'); await refresh(); } catch (err) { toast(String(err.message || err)); }
+      }
+      else if (act === 'toggle-pick') {
+        if (selectedPages.has(page.pageId)) selectedPages.delete(page.pageId); else selectedPages.add(page.pageId);
+        renderPagesTable();
+      }
+    });
+  }
   on('#tbodyPages', 'click', (e) => {
     const chk = e.target.closest('.row-chk-page');
     if (chk) {
@@ -886,23 +975,40 @@ function wire() {
     }
     const btn = e.target.closest('.btn-page-restrict');
     if (btn) {
+      e.preventDefault();
       const pid = btn.dataset.pageId;
-      selectedPages.clear();
-      selectedPages.add(pid);
-      renderPagesTable();
-      const t = pages.find((p) => p.pageId === pid);
-      const hint = $('#dlgRestrictHint');
-      if (hint) hint.textContent = t ? `Áp dụng cho 1 page: ${t.name} (${t.pageId})` : 'Áp dụng cho page đã chọn.';
-      $('#dlgPageRestrict').showModal();
+      const p = pages.find((x) => x.pageId === pid);
+      if (p) showPagesCtxMenu(e, p);
     }
   });
+  on('#tbodyPages', 'contextmenu', (e) => {
+    const tr = e.target.closest('tr[data-page-id]');
+    if (!tr) return;
+    const pid = tr.dataset.pageId;
+    const p = pages.find((x) => x.pageId === pid);
+    if (!p) return;
+    e.preventDefault();
+    showPagesCtxMenu(e, p);
+  });
   on('#btnPagesScan', 'click', async () => {
+    const selUser = $('#pagesUserFilter') ? String($('#pagesUserFilter').value || '').trim() : '';
+    const targetIds = selUser ? [selUser] : null;
+    // Nếu chọn user cụ thể mà user đó không có cookie thì báo ngay, không quét all
+    if (targetIds) {
+      const owner = accounts.find((a) => String(a.id) === String(selUser));
+      const ck = owner ? (owner.cookie || '') : '';
+      if (!ck || !String(ck).trim()) {
+        toast('User được chọn chưa có cookie — login trước');
+        return;
+      }
+    }
     const btn = $('#btnPagesScan');
     if (btn) btn.disabled = true;
     try {
-      setLog('Đang quét Page từ nick có cookie...');
-      const r = await invoke('pages:scan', {});
+      setLog(selUser ? `Đang quét Page của 1 user...` : 'Đang quét Page từ nick có cookie...');
+      const r = await invoke('pages:scan', targetIds ? { ids: targetIds } : {});
       if (!r.ok) toast(r.error || 'Quét thất bại');
+      else if (r.found === 0) toast('Không có page (hoặc cookie die/không có quyền)');
       else toast(`Quét xong: ${r.found} page (${r.added} mới, ${r.updated} cập nhật)`);
       await refresh();
     } catch (err) { toast(String(err.message || err)); }
@@ -926,13 +1032,7 @@ function wire() {
     toast(`Đã gỡ ${r.removed || ids.length} page`);
     await refresh();
   });
-  on('#btnPagesBulk', 'click', () => {
-    const ids = selectedPageIds();
-    if (!ids.length) { toast('Chọn page cần đổi trước'); return; }
-    const hint = $('#dlgRestrictHint');
-    if (hint) hint.textContent = `Áp dụng cho ${ids.length} page đã chọn. Gọi CountryRestrictionSettingMutation.`;
-    $('#dlgPageRestrict').showModal();
-  });
+  on('#btnPagesBulk', 'click', () => { openPagesRestrict(selectedPageIds()); });
   on('#btnRestrictCancel', 'click', () => { const d = $('#dlgPageRestrict'); if (d) d.close(); });
   on('#btnRestrictDo', 'click', async () => {
     const ids = selectedPageIds();
@@ -953,6 +1053,12 @@ function wire() {
     finally { if (btn) btn.disabled = false; }
   });
   on('#btnClearLogs2', 'click', () => { logs = []; renderLogs(); invoke('logs:clear').catch(() => {}); const t=$('#logText'); if(t) t.textContent='Sẵn sàng.'; });
+  document.querySelectorAll('#restrictQuick button').forEach((b) => {
+    b.addEventListener('click', () => {
+      const inp = $('#restrictCountries');
+      if (inp) inp.value = b.dataset.c || '';
+    });
+  });
 
   document.addEventListener('pointerdown', (e) => {
     if (e.button === 2) return;

@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' file: data:; style-src 'self' 'unsafe-inline' file:; script-src 'self' 'unsafe-inline' file:; connect-src 'self' file:" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' file: data:; style-src 'self' 'unsafe-inline' file:; script-src 'self' 'unsafe-inline' file:; connect-src 'self' file:; img-src 'self' file: data: https:" />
   <title>FB Manager</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -247,17 +247,29 @@
   </dialog>
 
   <dialog id="dlgPageRestrict">
-    <h3 id="dlgRestrictTitle">Đổi hạn chế quốc gia</h3>
-    <p class="hint" id="dlgRestrictHint">Áp dụng cho page đã chọn. Gọi CountryRestrictionSettingMutation.</p>
-    <label>Chế độ</label>
-    <div style="display:flex;flex-direction:column;gap:6px;margin:6px 0 8px">
-      <label class="radio"><input type="radio" name="restrictMode" value="block" checked /> Chặn (blocklist) — is_blocklist=true</label>
-      <label class="radio"><input type="radio" name="restrictMode" value="allow" /> Chỉ cho phép (allowlist) — is_blocklist=false</label>
-      <label class="radio"><input type="radio" name="restrictMode" value="clear" /> Gỡ hết chặn — country_list=[]</label>
+    <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:6px">
+      <div style="width:38px;height:38px;border-radius:12px;background:#14323a;color:#9ff3e8;display:grid;place-items:center;font-weight:800">◉</div>
+      <div style="flex:1;min-width:0">
+        <h3 id="dlgRestrictTitle" style="margin:0">Đổi hạn chế quốc gia</h3>
+        <p class="hint" id="dlgRestrictHint" style="margin:4px 0 0">Chọn chế độ và danh sách quốc gia (ISO2).</p>
+      </div>
+    </div>
+    <div style="background:#fbf8f2;border:1px solid #efe9dd;border-radius:12px;padding:10px 12px;margin:14px 0">
+      <div style="display:grid;gap:8px">
+        <label class="radio" style="padding:8px 10px;border:1px solid #e8e2d6;border-radius:10px;background:#fff"><input type="radio" name="restrictMode" value="block" checked /> <span><b>Chặn</b> <span style="color:#6b7385">— chỉ những nước trong danh sách không xem được</span></span></label>
+        <label class="radio" style="padding:8px 10px;border:1px solid #e8e2d6;border-radius:10px;background:#fff"><input type="radio" name="restrictMode" value="allow" /> <span><b>Chỉ cho phép</b> <span style="color:#6b7385">— chỉ những nước trong danh sách xem được</span></span></label>
+        <label class="radio" style="padding:8px 10px;border:1px solid #e8e2d6;border-radius:10px;background:#fff"><input type="radio" name="restrictMode" value="clear" /> <span><b>Gỡ hết chặn</b> <span style="color:#6b7385">— mở cho tất cả quốc gia</span></span></label>
+      </div>
     </div>
     <label>Quốc gia (ISO2, cách nhau dấu phẩy)</label>
     <input id="restrictCountries" type="text" placeholder="VD: CA, US, VN" value="CA" />
-    <p class="hint" style="margin-top:6px">VD: <code>CA</code> → {"country_list":["CA"],"is_blocklist":true} · rỗng = gỡ chặn</p>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px" id="restrictQuick">
+      <button type="button" class="ghost" data-c="CA" style="padding:4px 8px;font-size:12px">CA</button>
+      <button type="button" class="ghost" data-c="US" style="padding:4px 8px;font-size:12px">US</button>
+      <button type="button" class="ghost" data-c="VN" style="padding:4px 8px;font-size:12px">VN</button>
+      <button type="button" class="ghost" data-c="CA,US" style="padding:4px 8px;font-size:12px">CA, US</button>
+    </div>
+    <p class="hint" style="margin-top:8px">Mẹo: để trống khi chọn <b>Gỡ hết chặn</b>. Hệ thống dùng token đã lưu khi quét page, không fetch lại dtsg.</p>
     <div class="dlg-actions">
       <span class="grow"></span>
       <button class="ghost" id="btnRestrictCancel">Hủy</button>
