@@ -105,8 +105,7 @@
         <div class="filter-group">
           <span class="filter-label">Chặn</span>
           <button class="chip active" data-block="all">Tất cả</button>
-          <button class="chip" data-block="block-CA">Chặn CA</button>
-          <button class="chip" data-block="block-VN">Chặn VN</button>
+          <button class="chip" data-block="block-OCCHO">Chặn óc chó (24)</button>
           <button class="chip" data-block="none">Không chặn</button>
           <button class="chip" data-block="allow">Whitelist</button>
         </div>
@@ -261,11 +260,9 @@
       </div>
     </div>
     <label>Quốc gia (ISO2, cách nhau dấu phẩy)</label>
-    <input id="restrictCountries" type="text" placeholder="VD: CA, US, VN" value="CA" />
+    <input id="restrictCountries" type="text" placeholder="VD: CA, US, VN hoặc bấm Chặn óc chó" value="CA" />
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px" id="restrictQuick">
-      <button type="button" class="ghost" data-c="CA" style="padding:4px 8px;font-size:12px">CA</button>
-      <button type="button" class="ghost" data-c="US" style="padding:4px 8px;font-size:12px">US</button>
-      <button type="button" class="ghost" data-c="VN" style="padding:4px 8px;font-size:12px">VN</button>
+      <button type="button" class="ghost" data-c="OCCHO" style="padding:4px 10px;font-size:12px">Chặn óc chó (24)</button>
       <button type="button" class="ghost" data-c="CA,US" style="padding:4px 8px;font-size:12px">CA, US</button>
     </div>
     <p class="hint" style="margin-top:8px">Mẹo: để trống khi chọn <b>Gỡ hết chặn</b>. Hệ thống dùng token đã lưu khi quét page, không fetch lại dtsg.</p>

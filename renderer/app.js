@@ -12,6 +12,9 @@ const selected = new Set();
 let pages = [];
 const selectedPages = new Set();
 let pagesBlockFilter = 'all';
+const OCCHO_COUNTRIES = ['CU','PK','NP','BT','BD','IN','AF','LK','MV','MY','ID','PH','TW','VN','LA','DZ','KH','TH','ZA','TR','BR','EG','AR','CO'];
+const OCCHO_STR = OCCHO_COUNTRIES.join(',');
+const OCCHO_SET = new Set(OCCHO_COUNTRIES);
 
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({
@@ -187,8 +190,7 @@ function filteredPages() {
       const list = Array.isArray(p.country_list) ? p.country_list : [];
       if (pagesBlockFilter === 'none') return list.length === 0;
       if (pagesBlockFilter === 'allow') return list.length > 0 && !p.is_blocklist;
-      if (pagesBlockFilter === 'block-CA') return list.includes('CA') && !!p.is_blocklist;
-      if (pagesBlockFilter === 'block-VN') return list.includes('VN') && !!p.is_blocklist;
+      if (pagesBlockFilter === 'block-OCCHO') return OCCHO_SET.size > 0 && list.some((c) => OCCHO_SET.has(c)) && !!p.is_blocklist;
       return true;
     });
   }
@@ -936,8 +938,7 @@ function wire() {
       <button data-act="copy-page-url">Copy link page</button>
       <div class="ctx-sep"></div>
       <button data-act="restrict-this">Đổi hạn chế quốc gia…</button>
-      <button data-act="restrict-ca">Chặn CA</button>
-      <button data-act="restrict-vn">Chặn VN</button>
+      <button data-act="restrict-occho">Chặn óc chó (24 nước)</button>
       <button data-act="restrict-clear">Gỡ hết chặn</button>
       <div class="ctx-sep"></div>
       <button data-act="toggle-pick">${isPicked ? 'Bỏ chọn' : 'Chọn page này'}</button>
@@ -956,11 +957,8 @@ function wire() {
       else if (act === 'copy-page-id') { await invoke('clipboard:write', { text: page.pageId }); toast('Đã copy Page ID'); }
       else if (act === 'copy-page-url') { const u = page.url || `https://facebook.com/${page.pageId}`; await invoke('clipboard:write', { text: u }); toast('Đã copy link page'); }
       else if (act === 'restrict-this') openPagesRestrict([page.pageId]);
-      else if (act === 'restrict-ca') {
-        try { const r = await invoke('pages:setRestriction', { pageIds: [page.pageId], country_list: ['CA'], is_blocklist: true }); toast(r.ok ? 'Đã chặn CA' : (r.errors && r.errors[0]) || 'Lỗi'); await refresh(); } catch (err) { toast(String(err.message || err)); }
-      }
-      else if (act === 'restrict-vn') {
-        try { const r = await invoke('pages:setRestriction', { pageIds: [page.pageId], country_list: ['VN'], is_blocklist: true }); toast(r.ok ? 'Đã chặn VN' : (r.errors && r.errors[0]) || 'Lỗi'); await refresh(); } catch (err) { toast(String(err.message || err)); }
+      else if (act === 'restrict-occho') {
+        try { const r = await invoke('pages:setRestriction', { pageIds: [page.pageId], country_list: OCCHO_COUNTRIES, is_blocklist: true }); toast(r.ok ? 'Đã chặn óc chó (24)' : (r.errors && r.errors[0]) || 'Lỗi'); await refresh(); } catch (err) { toast(String(err.message || err)); }
       }
       else if (act === 'restrict-clear') {
         try { const r = await invoke('pages:setRestriction', { pageIds: [page.pageId], country_list: [], is_blocklist: true }); toast(r.ok ? 'Đã gỡ chặn' : (r.errors && r.errors[0]) || 'Lỗi'); await refresh(); } catch (err) { toast(String(err.message || err)); }
@@ -1085,12 +1083,12 @@ function wire() {
       if (!confirm(`Đã chọn ${ids.length} page nhưng chỉ chọn 1 ảnh — sẽ dùng cùng 1 ảnh cho tất cả. Chọn thư mục để random? Bấm OK để tiếp tục, Cancel để chọn thư mục.`)) return;
     }
     const btn = $('#btnAvatarDo'); if (btn) btn.disabled = true;
+    const dlg=$('#dlgPageAvatar'); if(dlg) dlg.close();
     try {
       setLog(`Đang đổi avatar cho ${ids.length} page...`);
       const r = await invoke('pages:setAvatar', avatarPick.folder ? { pageIds: ids, folder: avatarPick.folder } : { pageIds: ids, filePath: avatarPick.filePath });
       if (r && r.ok) toast(`Đã đổi avatar ${r.changed} page`);
       else toast(`Xong: ${r.changed || 0} ok, ${r.failed || 0} lỗi${r.errors && r.errors[0] ? ' — ' + r.errors[0] : ''}`);
-      const d=$('#dlgPageAvatar'); if(d) d.close();
       await refresh();
     } catch (err) { toast(String(err.message || err)); }
     finally { if (btn) btn.disabled = false; }
@@ -1106,11 +1104,11 @@ function wire() {
     const isBlock = mode !== 'allow';
     const btn = $('#btnRestrictDo');
     if (btn) btn.disabled = true;
+    const dlg=$('#dlgPageRestrict'); if(dlg) dlg.close();
     try {
       const r = await invoke('pages:setRestriction', { pageIds: ids, country_list: list, is_blocklist: mode === 'clear' ? true : isBlock });
       if (r && r.ok) toast(`Đã đổi ${r.changed || ids.length} page`);
       else toast(`Đổi xong: ${r.changed || 0} ok, ${r.failed || 0} lỗi${r.errors && r.errors[0] ? ' — ' + r.errors[0] : ''}`);
-      const d = $('#dlgPageRestrict'); if (d) d.close();
       await refresh();
     } catch (err) { toast(String(err.message || err)); }
     finally { if (btn) btn.disabled = false; }
@@ -1119,7 +1117,10 @@ function wire() {
   document.querySelectorAll('#restrictQuick button').forEach((b) => {
     b.addEventListener('click', () => {
       const inp = $('#restrictCountries');
-      if (inp) inp.value = b.dataset.c || '';
+      if (!inp) return;
+      const v = b.dataset.c || '';
+      if (v === 'OCCHO') inp.value = OCCHO_STR;
+      else inp.value = v;
     });
   });
 
